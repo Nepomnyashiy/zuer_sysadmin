@@ -1,5 +1,77 @@
 # Журнал состояния сервера
 
+## 2026-06-25: Hiddify proxy для SSH/shell-сессий
+
+### Контекст
+
+- Требование: исходящие CLI-запросы из SSH-сессии должны идти через Hiddify,
+  но входящие SSH/Traefik/Nextcloud через Ростелеком не должны ломаться.
+- Критичные входящие адреса/порты:
+  - `85.172.104.173:22/tcp` -> SSH
+  - `85.172.104.173:80/tcp` -> Traefik HTTP
+  - `85.172.104.173:443/tcp` -> Traefik HTTPS
+
+### Найденное состояние
+
+- Hiddify работает как пользовательский local proxy, не как system-wide TUN.
+- Активный proxy endpoint:
+
+```text
+127.0.0.1:12334
+```
+
+- Системный маршрут не через VPN:
+
+```text
+default via 192.168.0.1 dev enp4s0
+```
+
+- Policy routing не настроен:
+
+```text
+0:     from all lookup local
+32766: from all lookup main
+32767: from all lookup default
+```
+
+### Реализовано
+
+- Создан пользовательский env-файл:
+
+```text
+/home/nsadmin/.config/hiddify/proxy-env
+```
+
+- В `/home/nsadmin/.bashrc` добавлен guarded block, который подключает
+  `proxy-env` только для интерактивных shell-сессий.
+- Если `127.0.0.1:12334` слушает, shell получает:
+  `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY`.
+- Добавлены функции:
+  - `vpn-proxy-on`
+  - `vpn-proxy-off`
+  - `vpn-proxy-check`
+
+### Проверки
+
+```text
+direct: 85.172.104.173
+proxy:  94.183.234.153
+```
+
+`ip route` и `ip rule` не изменились. Direct-проверки публичных сервисов
+успешны:
+
+```text
+cloud.godny.tech   -> HTTP/2 302
+traefik.godny.tech -> HTTP/2 401
+```
+
+### Ограничения
+
+- Это не system-wide VPN.
+- Systemd/Docker services не получают proxy автоматически.
+- TUN/default route/policy routing не менять без отдельного rollback-плана.
+
 ## 2026-06-25: QwackPhone SSH и внешний доступ
 
 ### Контекст

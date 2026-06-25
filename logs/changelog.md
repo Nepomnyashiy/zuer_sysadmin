@@ -2,6 +2,50 @@
 
 ---
 
+## Запись #16: Hiddify proxy для SSH/shell-сессий
+
+- **Дата:** 25.06.2026
+- **Инициатор:** `nsadmin`
+- **Задача:** Сделать так, чтобы исходящие CLI-запросы из SSH-сессии могли идти
+  через Hiddify, не ломая входящие SSH/80/443 через Ростелеком.
+
+### Диагностика
+
+1. Hiddify слушает локальные proxy-порты, включая `127.0.0.1:12334`.
+2. Системного `tun`-интерфейса и policy routing нет.
+3. Default route остается прямым:
+   `default via 192.168.0.1 dev enp4s0`.
+4. Direct public IP: `85.172.104.173`.
+5. Hiddify proxy public IP: `94.183.234.153`.
+
+### Решение
+
+1. Создан `/home/nsadmin/.config/hiddify/proxy-env`.
+2. В `/home/nsadmin/.bashrc` добавлен guarded block для интерактивных
+   shell-сессий.
+3. Proxy включается автоматически только если `127.0.0.1:12334` слушает.
+4. Добавлены функции `vpn-proxy-on`, `vpn-proxy-off`, `vpn-proxy-check`.
+5. System route, TUN, UFW, Docker, Traefik и systemd services не менялись.
+
+### Проверки
+
+```text
+vpn-proxy-check:
+direct: 85.172.104.173
+proxy:  94.183.234.153
+
+cloud.godny.tech   -> HTTP/2 302 direct
+traefik.godny.tech -> HTTP/2 401 direct
+```
+
+### Ограничения
+
+- Это user-level proxy для shell/SSH, не system-wide VPN.
+- Для отдельных systemd/Docker services proxy нужно включать отдельным
+  точечным override.
+
+---
+
 ## Запись #15: QwackPhone SSH и public port forwarding
 
 - **Дата:** 25.06.2026

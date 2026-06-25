@@ -372,6 +372,45 @@ curl --noproxy '*' -I https://cloud.godny.tech
 curl --noproxy '*' -I https://traefik.godny.tech
 ```
 
+Hiddify не меняет системный default route. Входящие SSH/HTTP/HTTPS должны
+оставаться через Ростелеком:
+
+```text
+default via 192.168.0.1 dev enp4s0
+```
+
+Для интерактивных shell/SSH-сессий `nsadmin` настроен user-level proxy:
+
+```text
+~/.config/hiddify/proxy-env
+~/.bashrc
+```
+
+Если Hiddify слушает `127.0.0.1:12334`, новая интерактивная bash-сессия
+автоматически получает:
+
+```text
+HTTP_PROXY=http://127.0.0.1:12334
+HTTPS_PROXY=http://127.0.0.1:12334
+ALL_PROXY=socks5h://127.0.0.1:12334
+NO_PROXY=localhost,127.0.0.0/8,::1,192.168.0.0/16,10.0.0.0/8,172.16.0.0/12,85.172.104.173,.godny.tech
+```
+
+Команды управления в shell:
+
+```bash
+vpn-proxy-check
+vpn-proxy-on
+vpn-proxy-off
+```
+
+Ожидаемая проверка:
+
+```text
+direct: 85.172.104.173
+proxy:  94.183.234.153
+```
+
 Не менять default route, TUN или policy routing без отдельного плана и rollback.
 
 ## 12. Проекты на диске
