@@ -18,7 +18,7 @@
         fail_msg: >-
           Missing or invalid Ed25519 public key for {{ item.name }}.
           Generate it on the device and pass it through Ansible Vault or extra-vars.
-      loop: "{{ ssh_authorized_devices }}"
+      loop: "{{ ssh_authorized_devices | selectattr('public_key') }}"
       loop_control:
         label: "{{ item.name }}"
 
@@ -38,7 +38,7 @@
         comment: "{{ item.name }} nsadmin@{{ expected_hostname }}"
         state: present
         manage_dir: false
-      loop: "{{ ssh_authorized_devices }}"
+      loop: "{{ ssh_authorized_devices | selectattr('public_key') }}"
       loop_control:
         label: "{{ item.name }}"
 

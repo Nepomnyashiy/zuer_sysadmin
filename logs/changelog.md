@@ -2,6 +2,49 @@
 
 ---
 
+## Запись #15: QwackPhone SSH и public port forwarding
+
+- **Дата:** 25.06.2026
+- **Инициатор:** `nsadmin`
+- **Задача:** Восстановить SSH-доступ с `QwackPhone`, проверить LAN/public
+  подключение и зафиксировать состояние в Ansible/документации.
+
+### Диагностика
+
+1. `/home/nsadmin/.ssh/authorized_keys` был пустым, поэтому сервер не принимал
+   ключ `QwackPhone`.
+2. `ssh.socket` слушал `0.0.0.0:22` и `[::]:22`.
+3. UFW разрешал `22/tcp`.
+4. На роутере не был настроен проброс public `22/tcp` на сервер.
+
+### Решение
+
+1. В `authorized_keys` добавлен public key `QwackPhone`.
+2. Подтвержден успешный вход по LAN:
+   `Accepted publickey for nsadmin from 192.168.0.24`.
+3. На роутере добавлен проброс `85.172.104.173:22 -> 192.168.0.101:22/tcp`;
+   public SSH с `QwackPhone` подтвержден пользователем.
+4. В `ansible/group_vars/all.yml` добавлен публичный ключ `QwackPhone` как
+   воспроизводимый default.
+5. `ansible/ssh-access.yml` теперь пропускает устройства без заданного
+   public key, чтобы можно было применять один готовый ключ без placeholder'ов.
+
+### Текущее состояние
+
+```text
+QwackPhone key fingerprint: SHA256:5lbUW/d0SOFgp9gPRoWYbzdmLBaKYccbQl0U9vfe1dA
+SSH LAN:    192.168.0.101:22 -> работает
+SSH public: 85.172.104.173:22 -> работает через router port forwarding
+Hardening:  ssh_enable_key_only_hardening=false
+```
+
+### Оставшееся
+
+- Добавить ключи `qbook` и `QwackPad`.
+- После проверки входа со всех устройств включить key-only hardening.
+
+---
+
 ## Запись #14: SSH-устройства и подготовка `godny_soft` для Nextcloud
 
 - **Дата:** 25.06.2026

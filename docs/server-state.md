@@ -1,5 +1,61 @@
 # Журнал состояния сервера
 
+## 2026-06-25: QwackPhone SSH и внешний доступ
+
+### Контекст
+
+- Устройство: `QwackPhone`.
+- Пользователь SSH: `nsadmin`.
+- Сервер: `ZUER`, LAN `192.168.0.101`, public IPv4 `85.172.104.173`.
+
+### Найденная причина
+
+- `/home/nsadmin/.ssh/authorized_keys` был пустым.
+- Реального `ansible/group_vars/vault.yml` с ключами устройств нет, есть только
+  `vault.yml.example`.
+- SSH service работает через socket activation: `ssh.socket` слушает `22/tcp`.
+
+### Реализовано
+
+- Добавлен public key `QwackPhone`:
+
+```text
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIj2R8kpPINmwYUeziUwRCcvkUCdjtOQM9o/YgVox0Hj QwackPhone nsadmin@ZUER
+```
+
+- Подтвержден fingerprint установленного ключа:
+
+```text
+SHA256:5lbUW/d0SOFgp9gPRoWYbzdmLBaKYccbQl0U9vfe1dA
+```
+
+- Подтвержден вход с `QwackPhone` по LAN:
+
+```text
+Accepted publickey for nsadmin from 192.168.0.24
+```
+
+- Пользователь настроил router port forwarding:
+
+```text
+85.172.104.173:22/tcp -> 192.168.0.101:22/tcp
+```
+
+- Public SSH с `QwackPhone` после проброса порта подтвержден пользователем.
+
+### Изменения в конфигурации
+
+- `ansible/group_vars/all.yml` содержит default public key для `QwackPhone`.
+- `ansible/ssh-access.yml` пропускает устройства без заданного public key, чтобы
+  отсутствующие ключи `qbook` и `QwackPad` не блокировали применение
+  `QwackPhone`.
+- `ssh_enable_key_only_hardening` остается `false`.
+
+### Оставшиеся действия
+
+- Добавить public keys для `qbook` и `QwackPad`.
+- После проверки входа со всех устройств включить key-only hardening.
+
 ## 2026-06-25: подготовка SSH-устройств и `godny_soft` для Nextcloud
 
 ### Контекст

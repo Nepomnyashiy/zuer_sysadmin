@@ -122,6 +122,15 @@ sudo ansible-playbook -i ansible/inventory.ini ansible/ssh-access.yml --check --
 sudo ansible-playbook -i ansible/inventory.ini ansible/ssh-access.yml --ask-vault-pass
 ```
 
+`QwackPhone` уже добавлен как воспроизводимый public key в
+`ansible/group_vars/all.yml` и проверен:
+
+```text
+Fingerprint: SHA256:5lbUW/d0SOFgp9gPRoWYbzdmLBaKYccbQl0U9vfe1dA
+LAN SSH:     192.168.0.101:22
+Public SSH:  85.172.104.173:22 -> router -> 192.168.0.101:22
+```
+
 После проверки входа с `qbook`, `QwackPhone`, `QwackPad`:
 
 ```bash
@@ -372,7 +381,7 @@ curl --noproxy '*' -I https://traefik.godny.tech
 | Проект | Путь | Комментарий |
 | --- | --- | --- |
 | GigaVPN | `/run/media/nsadmin/godny_soft/soft/gigavpn` | Go/Python/PostgreSQL/VPN control plane |
-| Kolos Web | `/run/media/nsadmin/godny_soft/bratusin/kolos_web` | Strapi/PostgreSQL/Next.js |
+| Kolos Web | `/run/media/nsadmin/godny_soft/soft/kolos_web` | Strapi/PostgreSQL/Next.js |
 | Anaconda Site | `/run/media/nsadmin/godny_soft/site/anaconda_site` | Vite/React |
 | Anaconda MVP | `/run/media/nsadmin/godny_soft/soft/kip-service/anaconda_mvp` | FastAPI/Vue/PostgreSQL |
 | Black Mamba | `/run/media/nsadmin/godny_soft/soft/black_mamba` | локальная LLM/RAG-платформа |
@@ -388,7 +397,62 @@ curl --noproxy '*' -I https://traefik.godny.tech
 - определить backup strategy;
 - добавить домен и порт в `/srv/registry`.
 
-## 13. Резервное копирование
+## 13. GitHub
+
+На сервере используются два GitHub-аккаунта с раздельными SSH-ключами:
+
+| Аккаунт | SSH alias | Ключ | Назначение |
+| --- | --- | --- | --- |
+| `GodnySoft` | `github-godnysoft` | `~/.ssh/github_godnysoft_ed25519` | рабочие репозитории GodnySoft |
+| `Nepomnyashiy` | `github-nepomnyashiy` | `~/.ssh/github_nepomnyashiy_ed25519` | личные репозитории |
+
+Публичные ключи добавлены в GitHub. Приватные ключи не копировать в Markdown,
+репозитории, задачи или логи.
+
+Проверка доступа:
+
+```bash
+ssh -T git@github-godnysoft
+ssh -T git@github-nepomnyashiy
+```
+
+Ожидаемый ответ GitHub содержит успешную аутентификацию и фразу о том, что
+shell access не предоставляется.
+
+Для репозиториев использовать alias в remote URL, чтобы Git выбирал правильный
+ключ:
+
+```bash
+git remote set-url origin git@github-godnysoft:GodnySoft/kolos_web.git
+```
+
+Текущее состояние `kolos_web`:
+
+```text
+Path:   /run/media/nsadmin/godny_soft/soft/kolos_web
+Remote: git@github-godnysoft:GodnySoft/kolos_web.git
+Branch: main
+Latest synced commit: 9219e48 Release v1.1.0 order workflow and ZUER bootstrap
+Tag: v1.1.0
+```
+
+При обновлении `kolos_web` сначала проверить локальные изменения:
+
+```bash
+git -C /run/media/nsadmin/godny_soft/soft/kolos_web status --short --branch
+```
+
+Если пользователь явно разрешил перезаписать локальные изменения:
+
+```bash
+git -C /run/media/nsadmin/godny_soft/soft/kolos_web fetch --prune origin
+git -C /run/media/nsadmin/godny_soft/soft/kolos_web reset --hard origin/main
+git -C /run/media/nsadmin/godny_soft/soft/kolos_web clean -fd
+```
+
+Без явного разрешения не выполнять `reset --hard` и `clean -fd`.
+
+## 14. Резервное копирование
 
 Системный backup управляется:
 
@@ -406,7 +470,7 @@ systemctl status osnova-backup.timer
 sudo journalctl -u osnova-backup.service -n 100 --no-pager
 ```
 
-## 14. Журналы и аудит
+## 15. Журналы и аудит
 
 Основные документы:
 
@@ -424,7 +488,7 @@ CODEX.md
 - `logs/changelog.md` - что изменено и почему;
 - `/srv/registry/*` - публичные домены, порты и сервисы.
 
-## 15. Жесткие правила
+## 16. Жесткие правила
 
 - Не форматировать диски без явного подтверждения exact device и backup status.
 - Не удалять Docker volumes, project data, базы и `.env` без подтверждения.
@@ -435,12 +499,13 @@ CODEX.md
 - Не включать Hiddify/TUN/default route автоматически.
 - Не хранить секреты в git или открытых Markdown-файлах.
 
-## 16. Следующие действия
+## 17. Следующие действия
 
 1. Проверить `https://cloud.godny.tech` с мобильного интернета.
 2. Сохранить Traefik dashboard password в менеджер паролей.
-3. Проверить, нужен ли public SSH или лучше закрыть `22/tcp` на роутере.
-4. Переименовать 15 файлов в `mega-files` с несовместимой кодировкой имен.
-5. Ротировать секреты `/opt/nextcloud/nextcloud.env`, если они попадали в вывод
+3. Добавить SSH-ключи `qbook` и `QwackPad`.
+4. После проверки входа со всех устройств включить key-only SSH hardening.
+5. Переименовать 15 файлов в `mega-files` с несовместимой кодировкой имен.
+6. Ротировать секреты `/opt/nextcloud/nextcloud.env`, если они попадали в вывод
    диагностики.
-6. Добавить внешний backup слой: Restic/Borg repository вне этого сервера.
+7. Добавить внешний backup слой: Restic/Borg repository вне этого сервера.

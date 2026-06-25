@@ -51,11 +51,12 @@ base_packages:
 
 ssh_hardening_enabled: true
 ssh_enable_key_only_hardening: false
+qwackphone_ssh_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIj2R8kpPINmwYUeziUwRCcvkUCdjtOQM9o/YgVox0Hj QwackPhone"
 ssh_authorized_devices:
   - name: qbook
     public_key: "{{ vault_qbook_ssh_public_key | default('') }}"
   - name: QwackPhone
-    public_key: "{{ vault_qwackphone_ssh_public_key | default('') }}"
+    public_key: "{{ vault_qwackphone_ssh_public_key | default(qwackphone_ssh_public_key) }}"
   - name: QwackPad
     public_key: "{{ vault_qwackpad_ssh_public_key | default('') }}"
 firewall_enabled: true
