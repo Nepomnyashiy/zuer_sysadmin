@@ -352,6 +352,26 @@
         label: "{{ item.item }}"
       when: storage_mounts_enabled
 
+    - name: Check godny_soft mount target options
+      ansible.builtin.command: "findmnt -rn -T {{ godny_soft_mount }} -o OPTIONS -n"
+      register: godny_soft_mount_options
+      failed_when: false
+      changed_when: false
+      check_mode: false
+      when: nextcloud_enabled
+
+    - name: Refuse read-only godny_soft mount target
+      ansible.builtin.assert:
+        that:
+          - godny_soft_mount_options.rc == 0
+          - "'rw' in godny_soft_mount_options.stdout.split(',')"
+          - "'ro' not in godny_soft_mount_options.stdout.split(',')"
+        fail_msg: >-
+          godny_soft mount {{ godny_soft_mount }} is not writable or not mounted.
+          Mount options: {{ godny_soft_mount_options.stdout | default('unmounted') }}.
+          Repair the mount before exposing it as writable Nextcloud external storage.
+      when: nextcloud_enabled
+
     - name: Create Nextcloud directories
       ansible.builtin.file:
         path: "{{ item.path }}"
@@ -460,13 +480,11 @@
     - name: Verify Nextcloud container can write external storage paths
       ansible.builtin.command: >-
         docker compose exec -T -u www-data app sh -lc
-        'test -d {{ item.path }} && tmp="{{ item.path }}/.ansible-write-test-$$" && touch "$tmp" && rm -f "$tmp"'
+        'test -d {{ item.container_path }} && tmp="{{ item.container_path }}/.ansible-write-test-$$" && touch "$tmp" && rm -f "$tmp"'
       args:
         chdir: "{{ nextcloud_root }}"
       changed_when: false
-      loop:
-        - { name: "x-files", path: "/mnt/x-files" }
-        - { name: "mega files", path: "/mnt/mega-files" }
+      loop: "{{ nextcloud_external_storages }}"
       loop_control:
         label: "{{ item.name }}"
       when:
@@ -493,23 +511,33 @@
         - nextcloud_enabled
         - not ansible_check_mode
 
-    - name: Add x-files external storage
-      ansible.builtin.command: docker compose exec -T -u www-data app php occ files_external:create x-files local null::null -c datadir=/mnt/x-files
+    - name: Add Nextcloud external storage mounts
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - exec
+          - -T
+          - -u
+          - www-data
+          - app
+          - php
+          - occ
+          - files_external:create
+          - "{{ item.name }}"
+          - local
+          - null::null
+          - -c
+          - "datadir={{ item.container_path }}"
       args:
         chdir: "{{ nextcloud_root }}"
+      loop: "{{ nextcloud_external_storages }}"
+      loop_control:
+        label: "{{ item.name }}"
       when:
         - nextcloud_enabled
         - not ansible_check_mode
-        - "'x-files' not in nextcloud_external_mounts.stdout"
-
-    - name: Add mega files external storage
-      ansible.builtin.command: docker compose exec -T -u www-data app php occ files_external:create "mega files" local null::null -c datadir=/mnt/mega-files
-      args:
-        chdir: "{{ nextcloud_root }}"
-      when:
-        - nextcloud_enabled
-        - not ansible_check_mode
-        - "'mega files' not in nextcloud_external_mounts.stdout"
+        - item.name not in nextcloud_external_mounts.stdout
 
     - name: Read Nextcloud external storage mounts after changes
       ansible.builtin.command: docker compose exec -T -u www-data app php occ files_external:list
@@ -524,11 +552,13 @@
     - name: Verify Nextcloud external storage mounts are configured
       ansible.builtin.assert:
         that:
-          - "'/x-files' in nextcloud_external_mounts_after.stdout"
-          - "'/mega files' in nextcloud_external_mounts_after.stdout"
+          - "'/' ~ item.name in nextcloud_external_mounts_after.stdout"
         fail_msg: >-
           Nextcloud external storage mounts were not configured.
           Current mounts: {{ nextcloud_external_mounts_after.stdout | default('unavailable') }}
+      loop: "{{ nextcloud_external_storages }}"
+      loop_control:
+        label: "{{ item.name }}"
       when:
         - nextcloud_enabled
         - not ansible_check_mode
@@ -549,9 +579,7 @@
           - "--path=/{{ nextcloud_admin_user }}/files/{{ item }}"
       args:
         chdir: "{{ nextcloud_root }}"
-      loop:
-        - x-files
-        - "mega files"
+      loop: "{{ nextcloud_external_storages | map(attribute='name') | list }}"
       changed_when: false
       when:
         - nextcloud_enabled

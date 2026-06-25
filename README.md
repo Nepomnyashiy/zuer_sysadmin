@@ -88,6 +88,10 @@ sysadmin/
   storage mounts, Nextcloud, XRDP, fail2ban, backup timer.
 - `ansible/publish-web.yml` - публикация `godny.tech` через Traefik и
   обновление `/srv/registry`.
+- `ansible/ssh-access.yml` - добавление SSH-ключей устройств и опциональный
+  key-only hardening.
+- `ansible/desktop-bookmarks.yml` - добавление закладок storage-дисков в
+  графический файловый менеджер.
 
 ## 4. Ansible runbooks
 
@@ -109,6 +113,27 @@ sudo ansible-playbook -i ansible/inventory.ini ansible/bootstrap.yml
 ```bash
 sudo ansible-playbook -i ansible/inventory.ini ansible/publish-web.yml --check --diff
 sudo ansible-playbook -i ansible/inventory.ini ansible/publish-web.yml
+```
+
+SSH-доступ устройств:
+
+```bash
+sudo ansible-playbook -i ansible/inventory.ini ansible/ssh-access.yml --check --diff --ask-vault-pass
+sudo ansible-playbook -i ansible/inventory.ini ansible/ssh-access.yml --ask-vault-pass
+```
+
+После проверки входа с `qbook`, `QwackPhone`, `QwackPad`:
+
+```bash
+sudo ansible-playbook -i ansible/inventory.ini ansible/ssh-access.yml \
+  --ask-vault-pass \
+  -e ssh_enable_key_only_hardening=true
+```
+
+GUI-закладки дисков:
+
+```bash
+ansible-playbook -i ansible/inventory.ini ansible/desktop-bookmarks.yml
 ```
 
 `publish-web.yml` делает только web-публикацию:
@@ -193,6 +218,7 @@ Nextcloud установлен в:
 | --- | --- | --- |
 | `/x-files` | `/mnt/x-files` | `/srv/storage/x-files` |
 | `/mega files` | `/mnt/mega-files` | `/srv/storage/mega-files` |
+| `/godny soft` | `/mnt/godny-soft` | `/run/media/nsadmin/godny_soft` |
 
 Проверки:
 
@@ -202,6 +228,10 @@ sudo docker compose ps
 sudo docker compose exec -T -u www-data app php occ status
 sudo docker compose exec -T -u www-data app php occ files_external:list
 ```
+
+`godny_soft` добавляется тем же Ansible-механизмом, что и остальные external
+storage. Перед применением `bootstrap.yml` mountpoint должен быть доступен на
+запись (`rw`), иначе playbook остановится.
 
 ## 7. Storage
 
@@ -221,6 +251,36 @@ findmnt -T /srv/storage/mega-files -no TARGET,SOURCE,FSTYPE,OPTIONS
 
 Если виден `ro`, не считать Nextcloud готовым. Сначала восстановить файловую
 систему или исправить конфликт desktop/system mount.
+
+### Почему x-files и mega-files не видны как диски в GUI
+
+`x-files` и `mega-files` смонтированы как системные mountpoints:
+
+```text
+/srv/storage/x-files
+/srv/storage/mega-files
+```
+
+GNOME Files/Nautilus обычно показывает в боковой панели пользовательские
+udisks-mounts под `/run/media/<user>`, но не обязан показывать системные
+mountpoints как отдельные “диски”. Для удобства используются bookmarks:
+
+```text
+file:///srv/storage/x-files x-files
+file:///srv/storage/mega-files mega-files
+file:///run/media/nsadmin/godny_soft godny_soft
+```
+
+Если bookmarks не добавляются из-за `Read-only file system`, сначала проверить:
+
+```bash
+findmnt -T /home/nsadmin -no TARGET,SOURCE,FSTYPE,OPTIONS
+findmnt -T /srv/storage/x-files -no TARGET,SOURCE,FSTYPE,OPTIONS
+findmnt -T /srv/storage/mega-files -no TARGET,SOURCE,FSTYPE,OPTIONS
+findmnt -T /run/media/nsadmin/godny_soft -no TARGET,SOURCE,FSTYPE,OPTIONS
+```
+
+На production-хосте все writable storage mountpoints должны показывать `rw`.
 
 ## 8. Firewall и публичные порты
 
@@ -349,6 +409,7 @@ sudo journalctl -u osnova-backup.service -n 100 --no-pager
 
 ```text
 docs/server-state.md
+docs/ssh-devices.md
 logs/changelog.md
 REPORT.md
 CODEX.md

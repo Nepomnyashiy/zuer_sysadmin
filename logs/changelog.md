@@ -2,6 +2,61 @@
 
 ---
 
+## Запись #14: SSH-устройства и подготовка `godny_soft` для Nextcloud
+
+- **Дата:** 25.06.2026
+- **Инициатор:** `nsadmin`
+- **Задача:** Подготовить безопасный SSH-доступ для `qbook`,
+  `QwackPhone`, `QwackPad`; добавить `godny_soft` в Nextcloud по модели
+  external storage; разобраться, почему `x-files` и `mega-files` не видны в
+  графическом файловом проводнике.
+
+### Решение
+
+1. Добавлен `ansible/ssh-access.yml`.
+2. Добавлен документ `docs/ssh-devices.md` с инструкцией генерации Ed25519-ключа
+   на Ubuntu и настройкой Termius/Blink.
+3. В `ansible/group_vars/all.yml` добавлены:
+   - `ssh_authorized_devices`
+   - `ssh_enable_key_only_hardening`
+   - `godny_soft_mount`
+   - `nextcloud_external_storages`
+4. `ansible/templates/nextcloud-compose.yml.j2` переведен на список external
+   storage volumes.
+5. `ansible/bootstrap.yml` теперь создает, проверяет и сканирует external
+   storage списком, включая `godny soft`.
+6. Добавлен `ansible/desktop-bookmarks.yml` для GTK bookmarks:
+   `x-files`, `mega-files`, `godny_soft`.
+7. Обновлены `README.md`, `ansible/README.md`, `docs/server-state.md`.
+
+### Диагностика
+
+В execution-среде агента mount pre-check показал `ro` для `/`,
+`/run/media/nsadmin/godny_soft`, `/mnt/ufiles`, `/srv/storage/x-files` и
+`/srv/storage/mega-files`. Попытка применить bookmarks остановилась с
+`Read-only file system` для `/home/nsadmin/.config/gtk-3.0`.
+
+Перед фактическим применением storage-части на реальном хосте нужно проверить:
+
+```bash
+findmnt -T /home/nsadmin -no TARGET,SOURCE,FSTYPE,OPTIONS
+findmnt -T /run/media/nsadmin/godny_soft -no TARGET,SOURCE,FSTYPE,OPTIONS
+findmnt -T /mnt/ufiles -no TARGET,SOURCE,FSTYPE,OPTIONS
+findmnt -T /srv/storage/x-files -no TARGET,SOURCE,FSTYPE,OPTIONS
+findmnt -T /srv/storage/mega-files -no TARGET,SOURCE,FSTYPE,OPTIONS
+```
+
+### Итог
+
+- SSH-доступ подготовлен как воспроизводимый Ansible-runbook.
+- `godny_soft` подготовлен в Nextcloud compose/bootstrap как третий external
+  storage.
+- GUI-видимость решается bookmarks, без переноса серверных mountpoints.
+- Фактическое применение storage-части должно остановиться, если mountpoints
+  остаются `ro`.
+
+---
+
 ## Запись #13: Публикация Nextcloud через Traefik на `godny.tech`
 
 - **Дата:** 25.06.2026

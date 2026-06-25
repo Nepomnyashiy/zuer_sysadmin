@@ -50,6 +50,14 @@ base_packages:
   - xrdp
 
 ssh_hardening_enabled: true
+ssh_enable_key_only_hardening: false
+ssh_authorized_devices:
+  - name: qbook
+    public_key: "{{ vault_qbook_ssh_public_key | default('') }}"
+  - name: QwackPhone
+    public_key: "{{ vault_qwackphone_ssh_public_key | default('') }}"
+  - name: QwackPad
+    public_key: "{{ vault_qwackpad_ssh_public_key | default('') }}"
 firewall_enabled: true
 rdp_enabled: true
 nextcloud_enabled: true
@@ -59,6 +67,7 @@ backup_enabled: true
 ufiles_mount: /mnt/ufiles
 x_files_mount: /srv/storage/x-files
 mega_files_mount: /srv/storage/mega-files
+godny_soft_mount: /run/media/nsadmin/godny_soft
 
 # Detected with `lsblk -f` on 2026-06-25. Recheck before applying on another host.
 ufiles_uuid: "548a00f5-dfd3-47d0-9879-b2a175b5bdb1"
@@ -76,6 +85,16 @@ nextcloud_bind_addr: "127.0.0.1"
 nextcloud_http_port: 18080
 nextcloud_public_host: cloud.godny.tech
 nextcloud_external_storage_scan_enabled: false
+nextcloud_external_storages:
+  - name: x-files
+    container_path: /mnt/x-files
+    host_path: "{{ x_files_mount }}"
+  - name: "mega files"
+    container_path: /mnt/mega-files
+    host_path: "{{ mega_files_mount }}"
+  - name: "godny soft"
+    container_path: /mnt/godny-soft
+    host_path: "{{ godny_soft_mount }}"
 nextcloud_trusted_domains:
   - "localhost"
   - "{{ public_ipv4 }}"

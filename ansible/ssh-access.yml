@@ -1,0 +1,81 @@
+---
+- name: Configure safe SSH access for personal devices
+  hosts: main
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Confirm expected host
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.hostname == expected_hostname
+        fail_msg: "This playbook must run on {{ expected_hostname }}, got {{ ansible_facts.hostname }}."
+
+    - name: Validate supplied SSH public keys
+      ansible.builtin.assert:
+        that:
+          - item.public_key is match('^ssh-ed25519 ')
+        fail_msg: >-
+          Missing or invalid Ed25519 public key for {{ item.name }}.
+          Generate it on the device and pass it through Ansible Vault or extra-vars.
+      loop: "{{ ssh_authorized_devices }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+  tasks:
+    - name: Ensure admin .ssh directory exists
+      ansible.builtin.file:
+        path: "/home/{{ server_admin_user }}/.ssh"
+        state: directory
+        owner: "{{ server_admin_user }}"
+        group: "{{ server_admin_user }}"
+        mode: "0700"
+
+    - name: Authorize device SSH public keys
+      ansible.posix.authorized_key:
+        user: "{{ server_admin_user }}"
+        key: "{{ item.public_key }}"
+        comment: "{{ item.name }} nsadmin@{{ expected_hostname }}"
+        state: present
+        manage_dir: false
+      loop: "{{ ssh_authorized_devices }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Ensure authorized_keys permissions
+      ansible.builtin.file:
+        path: "/home/{{ server_admin_user }}/.ssh/authorized_keys"
+        owner: "{{ server_admin_user }}"
+        group: "{{ server_admin_user }}"
+        mode: "0600"
+
+    - name: Validate SSH configuration before optional hardening
+      ansible.builtin.command: /usr/sbin/sshd -t
+      changed_when: false
+
+    - name: Deploy key-only SSH hardening
+      ansible.builtin.template:
+        src: sshd_hardening.conf.j2
+        dest: /etc/ssh/sshd_config.d/99-osnova-hardening.conf
+        owner: root
+        group: root
+        mode: "0644"
+      when: ssh_enable_key_only_hardening
+
+    - name: Validate SSH configuration after hardening
+      ansible.builtin.command: /usr/sbin/sshd -t
+      changed_when: false
+      when: ssh_enable_key_only_hardening
+
+    - name: Reload SSH service after hardening
+      ansible.builtin.service:
+        name: ssh
+        state: reloaded
+      when:
+        - ssh_enable_key_only_hardening
+        - not ansible_check_mode
+
+    - name: Report SSH socket status
+      ansible.builtin.command: systemctl status ssh.socket --no-pager
+      changed_when: false
+      when: not ansible_check_mode

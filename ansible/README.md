@@ -123,3 +123,47 @@ sudo docker ps
 curl -I https://cloud.godny.tech
 curl -I https://traefik.godny.tech
 ```
+
+## Configure SSH Device Access
+
+Generate Ed25519 keys on each device and put only public keys into Ansible
+Vault:
+
+```yaml
+vault_qbook_ssh_public_key: "ssh-ed25519 AAAA... qbook nsadmin@ZUER"
+vault_qwackphone_ssh_public_key: "ssh-ed25519 AAAA... QwackPhone nsadmin@ZUER"
+vault_qwackpad_ssh_public_key: "ssh-ed25519 AAAA... QwackPad nsadmin@ZUER"
+```
+
+Apply keys without hardening first:
+
+```bash
+sudo ansible-playbook -i ansible/inventory.ini ansible/ssh-access.yml --check --diff --ask-vault-pass
+sudo ansible-playbook -i ansible/inventory.ini ansible/ssh-access.yml --ask-vault-pass
+```
+
+After testing login from all devices, enable key-only SSH:
+
+```bash
+sudo ansible-playbook -i ansible/inventory.ini ansible/ssh-access.yml \
+  --ask-vault-pass \
+  -e ssh_enable_key_only_hardening=true
+```
+
+## Desktop Storage Bookmarks
+
+The storage disks are server mountpoints under `/srv/storage`, so GNOME Files
+may not show them as removable drives. Add bookmarks instead:
+
+```bash
+ansible-playbook -i ansible/inventory.ini ansible/desktop-bookmarks.yml
+```
+
+If this fails with `Read-only file system`, inspect the mount state first:
+
+```bash
+findmnt -T /home/nsadmin -no TARGET,SOURCE,FSTYPE,OPTIONS
+findmnt -T /srv/storage/x-files -no TARGET,SOURCE,FSTYPE,OPTIONS
+findmnt -T /srv/storage/mega-files -no TARGET,SOURCE,FSTYPE,OPTIONS
+findmnt -T /run/media/nsadmin/godny_soft -no TARGET,SOURCE,FSTYPE,OPTIONS
+```

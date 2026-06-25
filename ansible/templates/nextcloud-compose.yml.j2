@@ -33,8 +33,9 @@ services:
     volumes:
       - nextcloud:/var/www/html
       - {{ nextcloud_data_dir }}:/var/www/html/data
-      - {{ x_files_mount }}:/mnt/x-files:rw
-      - {{ mega_files_mount }}:/mnt/mega-files:rw
+{% for storage in nextcloud_external_storages %}
+      - {{ storage.host_path }}:{{ storage.container_path }}:rw
+{% endfor %}
     networks:
       - internal
       - proxy

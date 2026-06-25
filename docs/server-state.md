@@ -1,5 +1,100 @@
 # Журнал состояния сервера
 
+## 2026-06-25: подготовка SSH-устройств и `godny_soft` для Nextcloud
+
+### Контекст
+
+- Устройства для SSH: `qbook`, `QwackPhone`, `QwackPad`.
+- Требуемая модель SSH: отдельный Ed25519-ключ на каждом устройстве.
+- Требуемое расширение Nextcloud external storage:
+  добавить `godny_soft` по тому же принципу, что `/x-files` и `/mega files`.
+- Требуемое улучшение GUI: сделать `x-files` и `mega-files` доступными в
+  графическом файловом проводнике.
+
+### Реализовано в конфигурации
+
+- Добавлен playbook `ansible/ssh-access.yml`.
+- Добавлена инструкция `docs/ssh-devices.md`.
+- Добавлены Vault placeholders:
+  - `vault_qbook_ssh_public_key`
+  - `vault_qwackphone_ssh_public_key`
+  - `vault_qwackpad_ssh_public_key`
+- Добавлена переменная `godny_soft_mount`.
+- `nextcloud_external_storages` теперь описывает три external storage:
+  - `x-files` -> `/mnt/x-files`
+  - `mega files` -> `/mnt/mega-files`
+  - `godny soft` -> `/mnt/godny-soft`
+- `ansible/templates/nextcloud-compose.yml.j2` монтирует external storage
+  списком.
+- `ansible/bootstrap.yml` создает, проверяет и сканирует Nextcloud external
+  storage списком, без hardcoded веток.
+- Добавлен playbook `ansible/desktop-bookmarks.yml` для GUI bookmarks:
+  - `file:///srv/storage/x-files x-files`
+  - `file:///srv/storage/mega-files mega-files`
+  - `file:///run/media/nsadmin/godny_soft godny_soft`
+
+### Важное состояние storage
+
+В агентской execution-среде pre-check показал `ro` для:
+
+```text
+/
+/run/media/nsadmin/godny_soft
+/mnt/ufiles
+/srv/storage/x-files
+/srv/storage/mega-files
+```
+
+Также применение `desktop-bookmarks.yml` из агентской среды остановилось с:
+
+```text
+Read-only file system: /home/nsadmin/.config/gtk-3.0
+```
+
+Это может быть особенностью sandbox/mount namespace агента. На реальном хосте
+перед применением нужно проверить:
+
+```bash
+findmnt -T /home/nsadmin -no TARGET,SOURCE,FSTYPE,OPTIONS
+findmnt -T /run/media/nsadmin/godny_soft -no TARGET,SOURCE,FSTYPE,OPTIONS
+findmnt -T /mnt/ufiles -no TARGET,SOURCE,FSTYPE,OPTIONS
+findmnt -T /srv/storage/x-files -no TARGET,SOURCE,FSTYPE,OPTIONS
+findmnt -T /srv/storage/mega-files -no TARGET,SOURCE,FSTYPE,OPTIONS
+```
+
+Если любой Nextcloud storage показывает `ro`, не применять `bootstrap.yml` для
+external storage до восстановления `rw`.
+
+### Команды применения
+
+SSH keys без hardening:
+
+```bash
+sudo ansible-playbook -i ansible/inventory.ini ansible/ssh-access.yml --check --diff --ask-vault-pass
+sudo ansible-playbook -i ansible/inventory.ini ansible/ssh-access.yml --ask-vault-pass
+```
+
+SSH key-only hardening после проверки входа:
+
+```bash
+sudo ansible-playbook -i ansible/inventory.ini ansible/ssh-access.yml \
+  --ask-vault-pass \
+  -e ssh_enable_key_only_hardening=true
+```
+
+Nextcloud external storage после `rw`-проверок:
+
+```bash
+sudo ansible-playbook -i ansible/inventory.ini ansible/bootstrap.yml --check --diff
+sudo ansible-playbook -i ansible/inventory.ini ansible/bootstrap.yml
+```
+
+GUI bookmarks:
+
+```bash
+ansible-playbook -i ansible/inventory.ini ansible/desktop-bookmarks.yml
+```
+
 ## 2026-06-25: публикация `cloud.godny.tech` через Traefik
 
 ### Контекст

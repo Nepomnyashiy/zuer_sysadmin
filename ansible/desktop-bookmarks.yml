@@ -1,0 +1,31 @@
+---
+- name: Add storage bookmarks for the local desktop file manager
+  hosts: main
+  become: false
+  gather_facts: false
+
+  vars:
+    gtk_bookmarks_path: "/home/{{ server_admin_user }}/.config/gtk-3.0/bookmarks"
+    desktop_storage_bookmarks:
+      - "file:///srv/storage/x-files x-files"
+      - "file:///srv/storage/mega-files mega-files"
+      - "file:///run/media/nsadmin/godny_soft godny_soft"
+
+  tasks:
+    - name: Ensure GTK config directory exists
+      ansible.builtin.file:
+        path: "/home/{{ server_admin_user }}/.config/gtk-3.0"
+        state: directory
+        owner: "{{ server_admin_user }}"
+        group: "{{ server_admin_user }}"
+        mode: "0700"
+
+    - name: Add storage bookmarks
+      ansible.builtin.lineinfile:
+        path: "{{ gtk_bookmarks_path }}"
+        line: "{{ item }}"
+        create: true
+        owner: "{{ server_admin_user }}"
+        group: "{{ server_admin_user }}"
+        mode: "0600"
+      loop: "{{ desktop_storage_bookmarks }}"
