@@ -50,10 +50,10 @@ findmnt -T /srv/storage/mega-files -no TARGET,SOURCE,FSTYPE,OPTIONS
 
 - SSH-доступ подготовлен как воспроизводимый Ansible-runbook.
 - `godny_soft` подготовлен в Nextcloud compose/bootstrap как третий external
-  storage.
+  storage и публикуется в контейнер read-only.
 - GUI-видимость решается bookmarks, без переноса серверных mountpoints.
-- Фактическое применение storage-части должно остановиться, если mountpoints
-  остаются `ro`.
+- Фактическое применение storage-части должно остановиться, если writable
+  mountpoints (`x-files`, `mega-files`) остаются `ro`.
 
 ---
 

@@ -34,7 +34,7 @@ services:
       - nextcloud:/var/www/html
       - {{ nextcloud_data_dir }}:/var/www/html/data
 {% for storage in nextcloud_external_storages %}
-      - {{ storage.host_path }}:{{ storage.container_path }}:rw
+      - {{ storage.host_path }}:{{ storage.container_path }}:{{ 'rw' if storage.writable | default(true) else 'ro' }}
 {% endfor %}
     networks:
       - internal

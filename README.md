@@ -230,8 +230,10 @@ sudo docker compose exec -T -u www-data app php occ files_external:list
 ```
 
 `godny_soft` добавляется тем же Ansible-механизмом, что и остальные external
-storage. Перед применением `bootstrap.yml` mountpoint должен быть доступен на
-запись (`rw`), иначе playbook остановится.
+storage, но монтируется в контейнер как read-only. Это сделано намеренно:
+проектный диск принадлежит `nsadmin:nsadmin`, и давать Nextcloud запись в
+рабочий проектный том небезопасно. Для `x-files` и `mega-files` по-прежнему
+ожидается writable access.
 
 ## 7. Storage
 
@@ -241,7 +243,7 @@ storage. Перед применением `bootstrap.yml` mountpoint долже
 | Файлы | `/dev/sdd2` | `X-FILES` | `2800B35C00B33024` | `/srv/storage/x-files` |
 | Файлы | `/dev/sde1` | `MEGA FILES` | `18B0DD66B0DD4AC0` | `/srv/storage/mega-files` |
 
-Перед задачами Nextcloud storage должен быть `rw`:
+Перед задачами Nextcloud writable storage должен быть `rw`:
 
 ```bash
 findmnt -T /mnt/ufiles -no TARGET,SOURCE,FSTYPE,OPTIONS
@@ -280,7 +282,8 @@ findmnt -T /srv/storage/mega-files -no TARGET,SOURCE,FSTYPE,OPTIONS
 findmnt -T /run/media/nsadmin/godny_soft -no TARGET,SOURCE,FSTYPE,OPTIONS
 ```
 
-На production-хосте все writable storage mountpoints должны показывать `rw`.
+На production-хосте `x-files` и `mega-files` должны показывать `rw`.
+`godny_soft` может оставаться read-only: в Nextcloud он публикуется именно так.
 
 ## 8. Firewall и публичные порты
 

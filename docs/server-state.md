@@ -23,7 +23,7 @@
 - `nextcloud_external_storages` теперь описывает три external storage:
   - `x-files` -> `/mnt/x-files`
   - `mega files` -> `/mnt/mega-files`
-  - `godny soft` -> `/mnt/godny-soft`
+  - `godny soft` -> `/mnt/godny-soft` (read-only)
 - `ansible/templates/nextcloud-compose.yml.j2` монтирует external storage
   списком.
 - `ansible/bootstrap.yml` создает, проверяет и сканирует Nextcloud external
@@ -62,8 +62,9 @@ findmnt -T /srv/storage/x-files -no TARGET,SOURCE,FSTYPE,OPTIONS
 findmnt -T /srv/storage/mega-files -no TARGET,SOURCE,FSTYPE,OPTIONS
 ```
 
-Если любой Nextcloud storage показывает `ro`, не применять `bootstrap.yml` для
-external storage до восстановления `rw`.
+Для `x-files` и `mega-files` требуется `rw`. Для `godny_soft` принято
+безопасное решение: read-only bind mount в контейнер Nextcloud, без расширения
+прав записи для `www-data` на проектный диск.
 
 ### Команды применения
 

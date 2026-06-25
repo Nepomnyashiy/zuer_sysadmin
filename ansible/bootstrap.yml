@@ -360,16 +360,15 @@
       check_mode: false
       when: nextcloud_enabled
 
-    - name: Refuse read-only godny_soft mount target
+    - name: Require mounted godny_soft target
       ansible.builtin.assert:
         that:
           - godny_soft_mount_options.rc == 0
-          - "'rw' in godny_soft_mount_options.stdout.split(',')"
-          - "'ro' not in godny_soft_mount_options.stdout.split(',')"
         fail_msg: >-
-          godny_soft mount {{ godny_soft_mount }} is not writable or not mounted.
+          godny_soft mount {{ godny_soft_mount }} is not mounted.
           Mount options: {{ godny_soft_mount_options.stdout | default('unmounted') }}.
-          Repair the mount before exposing it as writable Nextcloud external storage.
+          The Nextcloud bind mount is intentionally read-only, but the source path
+          must exist and be mounted before bootstrap continues.
       when: nextcloud_enabled
 
     - name: Create Nextcloud directories
@@ -480,7 +479,7 @@
     - name: Verify Nextcloud container can write external storage paths
       ansible.builtin.command: >-
         docker compose exec -T -u www-data app sh -lc
-        'test -d {{ item.container_path }} && tmp="{{ item.container_path }}/.ansible-write-test-$$" && touch "$tmp" && rm -f "$tmp"'
+        '{% if item.writable | default(true) %}test -d {{ item.container_path }} && tmp="{{ item.container_path }}/.ansible-write-test-$$" && touch "$tmp" && rm -f "$tmp"{% else %}test -d {{ item.container_path }}{% endif %}'
       args:
         chdir: "{{ nextcloud_root }}"
       changed_when: false

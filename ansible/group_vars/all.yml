@@ -89,12 +89,15 @@ nextcloud_external_storages:
   - name: x-files
     container_path: /mnt/x-files
     host_path: "{{ x_files_mount }}"
+    writable: true
   - name: "mega files"
     container_path: /mnt/mega-files
     host_path: "{{ mega_files_mount }}"
+    writable: true
   - name: "godny soft"
     container_path: /mnt/godny-soft
     host_path: "{{ godny_soft_mount }}"
+    writable: false
 nextcloud_trusted_domains:
   - "localhost"
   - "{{ public_ipv4 }}"
