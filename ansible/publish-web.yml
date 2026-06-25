@@ -242,6 +242,7 @@
           - "{{ traefik_root }}/dynamic/users.htpasswd"
           - "{{ traefik_dashboard_user }}"
         stdin: "{{ traefik_dashboard_password_slurp.content | b64decode | trim }}"
+      register: traefik_htpasswd_repair
       no_log: true
       when:
         - not ansible_check_mode
@@ -294,6 +295,14 @@
       register: traefik_compose_up
       changed_when: "'Started' in traefik_compose_up.stdout or 'Created' in traefik_compose_up.stdout or 'Recreated' in traefik_compose_up.stdout"
       when: not ansible_check_mode
+
+    - name: Restart Traefik after dashboard auth repair
+      ansible.builtin.command: docker compose restart traefik
+      args:
+        chdir: "{{ traefik_root }}"
+      when:
+        - not ansible_check_mode
+        - traefik_htpasswd_repair is changed
 
     - name: Deploy public Nextcloud compose configuration
       ansible.builtin.template:
