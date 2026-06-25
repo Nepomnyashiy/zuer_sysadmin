@@ -1,0 +1,422 @@
+---
+- name: Publish godny.tech web services through Traefik
+  hosts: main
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Confirm expected host
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.hostname == expected_hostname
+        fail_msg: "This playbook must run on {{ expected_hostname }}, got {{ ansible_facts.hostname }}."
+
+    - name: Read IPv4 addresses
+      ansible.builtin.command: ip -4 addr
+      register: ipv4_addresses
+      changed_when: false
+      check_mode: false
+
+    - name: Confirm LAN IP is present
+      ansible.builtin.assert:
+        that:
+          - expected_lan_ip in ipv4_addresses.stdout
+        fail_msg: "LAN IP {{ expected_lan_ip }} was not found. Stop before publishing services."
+
+    - name: Check exact storage mount targets
+      ansible.builtin.command: "findmnt -rn {{ item }} -o TARGET,OPTIONS"
+      register: web_storage_mounts
+      failed_when: false
+      changed_when: false
+      check_mode: false
+      loop: "{{ web_required_mounts }}"
+
+    - name: Refuse missing or read-only storage mount targets
+      ansible.builtin.assert:
+        that:
+          - item.rc == 0
+          - item.stdout.split() | length > 1
+          - "'rw' in item.stdout.split()[1].split(',')"
+          - "'ro' not in item.stdout.split()[1].split(',')"
+        fail_msg: "Required storage mount {{ item.item }} is missing or not writable: {{ item.stdout | default('unmounted') }}"
+      loop: "{{ web_storage_mounts.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Check listeners on public web ports
+      ansible.builtin.shell: |
+        set -euo pipefail
+        ss -H -tulpn | awk '$5 ~ /:80$|:443$/ {print}'
+      args:
+        executable: /bin/bash
+      register: web_port_listeners
+      changed_when: false
+      check_mode: false
+
+    - name: Check Docker containers publishing public web ports
+      ansible.builtin.shell: |
+        set -euo pipefail
+        {
+          docker ps --filter publish=80 --format '{{ "{{.Names}}" }}'
+          docker ps --filter publish=443 --format '{{ "{{.Names}}" }}'
+        } | sort -u
+      args:
+        executable: /bin/bash
+      register: web_port_docker_publishers
+      changed_when: false
+      check_mode: false
+      failed_when: false
+
+    - name: Refuse non-Traefik listeners on 80 or 443
+      ansible.builtin.assert:
+        that:
+          - >-
+            web_port_listeners.stdout == ""
+            or "traefik" in web_port_listeners.stdout
+            or (
+              "docker-proxy" in web_port_listeners.stdout
+              and web_port_docker_publishers.stdout_lines | difference(["traefik"]) | length == 0
+              and "traefik" in web_port_docker_publishers.stdout_lines
+            )
+        fail_msg: >-
+          Ports 80/443 are occupied by a non-Traefik process.
+          Listeners: {{ web_port_listeners.stdout }}
+          Docker publishers: {{ web_port_docker_publishers.stdout }}
+
+    - name: Check DNS records
+      ansible.builtin.command: "dig {{ item.name }} {{ item.type }} +short"
+      register: web_dns_checks
+      changed_when: false
+      check_mode: false
+      loop:
+        - { name: "{{ public_domain }}", type: A, expected: "{{ public_ipv4 }}" }
+        - { name: "www.{{ public_domain }}", type: A, expected: "{{ public_ipv4 }}" }
+        - { name: "{{ nextcloud_public_host }}", type: A, expected: "{{ public_ipv4 }}" }
+        - { name: "{{ traefik_dashboard_host }}", type: A, expected: "{{ public_ipv4 }}" }
+
+    - name: Confirm DNS A records point to the public IP
+      ansible.builtin.assert:
+        that:
+          - item.item.expected in item.stdout_lines
+        fail_msg: "DNS {{ item.item.name }} {{ item.item.type }} does not point to {{ item.item.expected }}: {{ item.stdout }}"
+      loop: "{{ web_dns_checks.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+
+    - name: Check domain MX records
+      ansible.builtin.command: "dig {{ public_domain }} MX +short"
+      register: web_mx_check
+      changed_when: false
+      check_mode: false
+
+    - name: Confirm MX records use SpaceWeb
+      ansible.builtin.assert:
+        that:
+          - "'mx1.spaceweb.ru.' in web_mx_check.stdout"
+          - "'mx2.spaceweb.ru.' in web_mx_check.stdout"
+        fail_msg: "MX records are not the expected SpaceWeb records: {{ web_mx_check.stdout }}"
+
+  tasks:
+    - name: Install required web publishing packages
+      ansible.builtin.apt:
+        name:
+          - apache2-utils
+          - dnsutils
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Ensure top-level service directories exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ server_admin_user }}"
+        group: "{{ server_admin_user }}"
+        mode: "0755"
+      loop:
+        - /srv/proxy
+        - /srv/projects
+        - /srv/databases
+        - /srv/backups
+        - /srv/registry
+        - /srv/scripts
+        - /srv/logs
+
+    - name: Ensure Traefik directories exist
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "{{ item.mode }}"
+      loop:
+        - { path: "{{ traefik_root }}", mode: "0750" }
+        - { path: "{{ traefik_root }}/letsencrypt", mode: "0750" }
+        - { path: "{{ traefik_root }}/dynamic", mode: "0750" }
+
+    - name: Ensure ACME storage file exists
+      ansible.builtin.file:
+        path: "{{ traefik_root }}/letsencrypt/acme.json"
+        state: touch
+        owner: root
+        group: root
+        mode: "0600"
+        modification_time: preserve
+        access_time: preserve
+
+    - name: Deploy Traefik environment
+      ansible.builtin.template:
+        src: traefik.env.j2
+        dest: "{{ traefik_root }}/.env"
+        owner: root
+        group: root
+        mode: "0640"
+
+    - name: Check existing Traefik dashboard password
+      ansible.builtin.stat:
+        path: "{{ traefik_root }}/dynamic/dashboard-password.txt"
+      register: traefik_dashboard_password_file
+
+    - name: Generate Traefik dashboard password
+      ansible.builtin.command: openssl rand -base64 32
+      register: generated_traefik_dashboard_password
+      changed_when: false
+      when:
+        - not ansible_check_mode
+        - not traefik_dashboard_password_file.stat.exists
+
+    - name: Store generated Traefik dashboard password root-only
+      ansible.builtin.copy:
+        dest: "{{ traefik_root }}/dynamic/dashboard-password.txt"
+        owner: root
+        group: root
+        mode: "0600"
+        content: "{{ generated_traefik_dashboard_password.stdout }}\n"
+      no_log: true
+      when:
+        - not ansible_check_mode
+        - not traefik_dashboard_password_file.stat.exists
+
+    - name: Show newly generated Traefik dashboard access
+      ansible.builtin.debug:
+        msg:
+          - "Traefik dashboard: https://{{ traefik_dashboard_host }}"
+          - "Traefik user: {{ traefik_dashboard_user }}"
+          - "Traefik password: {{ generated_traefik_dashboard_password.stdout }}"
+      when:
+        - not ansible_check_mode
+        - not traefik_dashboard_password_file.stat.exists
+
+    - name: Read Traefik dashboard password
+      ansible.builtin.slurp:
+        src: "{{ traefik_root }}/dynamic/dashboard-password.txt"
+      register: traefik_dashboard_password_slurp
+      no_log: true
+      when: not ansible_check_mode
+
+    - name: Check existing Traefik users file
+      ansible.builtin.stat:
+        path: "{{ traefik_root }}/dynamic/users.htpasswd"
+      register: traefik_users_file
+      when: not ansible_check_mode
+
+    - name: Create Traefik dashboard htpasswd file
+      ansible.builtin.command:
+        argv:
+          - htpasswd
+          - -c
+          - -iB
+          - "{{ traefik_root }}/dynamic/users.htpasswd"
+          - "{{ traefik_dashboard_user }}"
+        stdin: "{{ traefik_dashboard_password_slurp.content | b64decode }}"
+      no_log: true
+      when:
+        - not ansible_check_mode
+        - not traefik_users_file.stat.exists
+
+    - name: Ensure Traefik users file permissions
+      ansible.builtin.file:
+        path: "{{ traefik_root }}/dynamic/users.htpasswd"
+        owner: root
+        group: root
+        mode: "0640"
+      when: not ansible_check_mode
+
+    - name: Deploy Traefik dynamic routes
+      ansible.builtin.template:
+        src: traefik-routes.yml.j2
+        dest: "{{ traefik_root }}/dynamic/routes.yml"
+        owner: root
+        group: root
+        mode: "0640"
+
+    - name: Deploy Traefik compose file
+      ansible.builtin.template:
+        src: traefik-compose.yml.j2
+        dest: "{{ traefik_root }}/docker-compose.yml"
+        owner: root
+        group: root
+        mode: "0640"
+
+    - name: Ensure Docker proxy network exists
+      ansible.builtin.command: docker network create proxy
+      register: docker_proxy_network_create
+      failed_when:
+        - docker_proxy_network_create.rc != 0
+        - "'already exists' not in docker_proxy_network_create.stderr"
+      changed_when: docker_proxy_network_create.rc == 0
+      when: not ansible_check_mode
+
+    - name: Validate Traefik compose configuration
+      ansible.builtin.command: docker compose config
+      args:
+        chdir: "{{ traefik_root }}"
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Start Traefik
+      ansible.builtin.command: docker compose up -d
+      args:
+        chdir: "{{ traefik_root }}"
+      register: traefik_compose_up
+      changed_when: "'Started' in traefik_compose_up.stdout or 'Created' in traefik_compose_up.stdout or 'Recreated' in traefik_compose_up.stdout"
+      when: not ansible_check_mode
+
+    - name: Deploy public Nextcloud compose configuration
+      ansible.builtin.template:
+        src: nextcloud-compose.yml.j2
+        dest: "{{ nextcloud_root }}/docker-compose.yml"
+        owner: root
+        group: root
+        mode: "0640"
+
+    - name: Validate Nextcloud compose configuration
+      ansible.builtin.command: docker compose config
+      args:
+        chdir: "{{ nextcloud_root }}"
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Start Nextcloud with proxy labels
+      ansible.builtin.command: docker compose up -d
+      args:
+        chdir: "{{ nextcloud_root }}"
+      register: nextcloud_proxy_compose_up
+      changed_when: "'Started' in nextcloud_proxy_compose_up.stdout or 'Created' in nextcloud_proxy_compose_up.stdout or 'Recreated' in nextcloud_proxy_compose_up.stdout"
+      when: not ansible_check_mode
+
+    - name: Wait for Nextcloud occ after proxy update
+      ansible.builtin.command: docker compose exec -T -u www-data app php occ status
+      args:
+        chdir: "{{ nextcloud_root }}"
+      register: nextcloud_proxy_occ_status
+      retries: 30
+      delay: 10
+      until: nextcloud_proxy_occ_status.rc == 0
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Set Nextcloud trusted public domain
+      ansible.builtin.command: docker compose exec -T -u www-data app php occ config:system:set trusted_domains 2 --value={{ nextcloud_public_host }}
+      args:
+        chdir: "{{ nextcloud_root }}"
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Set Nextcloud overwrite protocol
+      ansible.builtin.command: docker compose exec -T -u www-data app php occ config:system:set overwriteprotocol --value=https
+      args:
+        chdir: "{{ nextcloud_root }}"
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Set Nextcloud overwrite host
+      ansible.builtin.command: docker compose exec -T -u www-data app php occ config:system:set overwritehost --value={{ nextcloud_public_host }}
+      args:
+        chdir: "{{ nextcloud_root }}"
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Set Nextcloud CLI URL
+      ansible.builtin.command: docker compose exec -T -u www-data app php occ config:system:set overwrite.cli.url --value=https://{{ nextcloud_public_host }}
+      args:
+        chdir: "{{ nextcloud_root }}"
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Set Nextcloud trusted proxy
+      ansible.builtin.command: docker compose exec -T -u www-data app php occ config:system:set trusted_proxies 0 --value=traefik
+      args:
+        chdir: "{{ nextcloud_root }}"
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Allow HTTP through UFW
+      ansible.builtin.command: ufw allow 80/tcp comment 'HTTP Traefik'
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Allow HTTPS through UFW
+      ansible.builtin.command: ufw allow 443/tcp comment 'HTTPS Traefik'
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Deploy registry files
+      ansible.builtin.template:
+        src: "{{ item.src }}"
+        dest: "/srv/registry/{{ item.dest }}"
+        owner: "{{ server_admin_user }}"
+        group: "{{ server_admin_user }}"
+        mode: "0644"
+      loop:
+        - { src: registry-domains.md.j2, dest: domains.md }
+        - { src: registry-ports.md.j2, dest: ports.md }
+        - { src: registry-services.md.j2, dest: services.md }
+        - { src: registry-server-notes.md.j2, dest: server-notes.md }
+
+    - name: Check UFW status
+      ansible.builtin.command: ufw status verbose
+      register: final_ufw_status
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Check running containers
+      ansible.builtin.command: docker ps
+      register: final_docker_ps
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Check HTTPS response through local Traefik listener
+      ansible.builtin.command: curl --noproxy '*' -I --resolve {{ nextcloud_public_host }}:443:127.0.0.1 https://{{ nextcloud_public_host }}
+      register: final_nextcloud_https_local
+      changed_when: false
+      retries: 12
+      delay: 10
+      until: final_nextcloud_https_local.rc == 0
+      when: not ansible_check_mode
+
+    - name: Check Traefik dashboard HTTPS response through local listener
+      ansible.builtin.command: curl --noproxy '*' -I --resolve {{ traefik_dashboard_host }}:443:127.0.0.1 https://{{ traefik_dashboard_host }}
+      register: final_traefik_https_local
+      changed_when: false
+      retries: 12
+      delay: 10
+      until: final_traefik_https_local.rc == 0
+      when: not ansible_check_mode
+
+    - name: Check HTTPS response through public DNS path
+      ansible.builtin.command: curl --noproxy '*' -I https://{{ nextcloud_public_host }}
+      register: final_nextcloud_https_public
+      changed_when: false
+      failed_when: false
+      when: not ansible_check_mode
+
+    - name: Print final checks
+      ansible.builtin.debug:
+        msg:
+          - "{{ final_ufw_status.stdout }}"
+          - "{{ final_docker_ps.stdout }}"
+          - "{{ final_nextcloud_https_local.stdout }}"
+          - "{{ final_traefik_https_local.stdout }}"
+          - "{{ final_nextcloud_https_public.stdout | default('Public DNS path curl failed or returned no output; verify from mobile internet.') }}"
+      when: not ansible_check_mode

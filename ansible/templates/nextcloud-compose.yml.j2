@@ -1,0 +1,49 @@
+services:
+  db:
+    image: mariadb:11
+    restart: unless-stopped
+    command: --transaction-isolation=READ-COMMITTED --binlog-format=ROW
+    env_file:
+      - nextcloud.env
+    volumes:
+      - db:/var/lib/mysql
+    networks:
+      - internal
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks:
+      - internal
+
+  app:
+    image: nextcloud:apache
+    restart: unless-stopped
+    depends_on:
+      - db
+      - redis
+    env_file:
+      - nextcloud.env
+    environment:
+      OVERWRITEPROTOCOL: https
+      OVERWRITEHOST: {{ nextcloud_public_host }}
+      TRUSTED_PROXIES: traefik
+    ports:
+      - "{{ nextcloud_bind_addr }}:{{ nextcloud_http_port }}:80"
+    volumes:
+      - nextcloud:/var/www/html
+      - {{ nextcloud_data_dir }}:/var/www/html/data
+      - {{ x_files_mount }}:/mnt/x-files:rw
+      - {{ mega_files_mount }}:/mnt/mega-files:rw
+    networks:
+      - internal
+      - proxy
+volumes:
+  db:
+  nextcloud:
+
+networks:
+  internal:
+    driver: bridge
+  proxy:
+    external: true

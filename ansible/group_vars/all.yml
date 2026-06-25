@@ -1,0 +1,119 @@
+---
+server_admin_user: nsadmin
+storage_group: storage
+storage_group_gid: 1999
+expected_hostname: ZUER
+expected_lan_ip: "192.168.0.101"
+
+public_ipv4: "85.172.104.173"
+public_ipv6: "2a13:7c00:10:26:f816:3eff:fe99:a89e"
+public_domain: godny.tech
+
+# Add only ports that must be reachable from the internet.
+public_tcp_ports:
+  - 22
+  - 80
+  - 443
+
+# RDP is intentionally not public. Add LAN/VPN CIDRs only.
+trusted_rdp_sources:
+  - "192.168.0.0/16"
+  - "10.0.0.0/8"
+  - "172.16.0.0/12"
+
+base_packages:
+  - acl
+  - ansible
+  - borgbackup
+  - ca-certificates
+  - curl
+  - docker.io
+  - docker-compose-v2
+  - fail2ban
+  - git
+  - gnupg
+  - htop
+  - jq
+  - ncdu
+  - nodejs
+  - npm
+  - ntfs-3g
+  - openssl
+  - openssh-server
+  - python3
+  - python3-pip
+  - restic
+  - rsync
+  - ufw
+  - unattended-upgrades
+  - xorgxrdp
+  - xrdp
+
+ssh_hardening_enabled: true
+firewall_enabled: true
+rdp_enabled: true
+nextcloud_enabled: true
+storage_mounts_enabled: true
+backup_enabled: true
+
+ufiles_mount: /mnt/ufiles
+x_files_mount: /srv/storage/x-files
+mega_files_mount: /srv/storage/mega-files
+
+# Detected with `lsblk -f` on 2026-06-25. Recheck before applying on another host.
+ufiles_uuid: "548a00f5-dfd3-47d0-9879-b2a175b5bdb1"
+x_files_uuid: "2800B35C00B33024"
+mega_files_uuid: "18B0DD66B0DD4AC0"
+
+ufiles_fstype: ext4
+storage_ntfs_fstype: ntfs-3g
+ufiles_mount_options: "defaults,nofail"
+storage_ntfs_mount_options: "uid=33,gid={{ storage_group_gid }},umask=0007,big_writes,nofail"
+
+nextcloud_root: /opt/nextcloud
+nextcloud_data_dir: /mnt/ufiles/nextcloud-data
+nextcloud_bind_addr: "127.0.0.1"
+nextcloud_http_port: 18080
+nextcloud_public_host: cloud.godny.tech
+nextcloud_external_storage_scan_enabled: false
+nextcloud_trusted_domains:
+  - "localhost"
+  - "{{ public_ipv4 }}"
+  - "{{ nextcloud_public_host }}"
+
+traefik_root: /srv/proxy/traefik
+traefik_acme_email: admin@godny.tech
+traefik_dashboard_host: traefik.godny.tech
+traefik_dashboard_user: admin
+
+web_required_mounts:
+  - "{{ ufiles_mount }}"
+  - "{{ x_files_mount }}"
+  - "{{ mega_files_mount }}"
+
+# Optional overrides. If left as CHANGE_ME, bootstrap generates root-only
+# secrets in /opt/nextcloud/nextcloud.env on first apply.
+nextcloud_admin_user: admin
+nextcloud_admin_password: "{{ vault_nextcloud_admin_password | default('CHANGE_ME') }}"
+nextcloud_db_password: "{{ vault_nextcloud_db_password | default('CHANGE_ME') }}"
+nextcloud_db_root_password: "{{ vault_nextcloud_db_root_password | default('CHANGE_ME') }}"
+
+project_roots:
+  - /run/media/nsadmin/godny_soft/bratusin/kolos_web
+  - /run/media/nsadmin/godny_soft/site/anaconda_site
+  - /run/media/nsadmin/godny_soft/soft/black_mamba
+  - /run/media/nsadmin/godny_soft/soft/gigavpn
+  - /run/media/nsadmin/godny_soft/soft/kip-service/anaconda_mvp
+  - /run/media/nsadmin/godny_soft/soft/codex_node_agent
+
+backup_script_path: /usr/local/sbin/osnova-backup.sh
+backup_root: /mnt/ufiles/backups
+backup_excludes:
+  - ".git/"
+  - "node_modules/"
+  - ".next/"
+  - "venv/"
+  - ".venv/"
+  - "__pycache__/"
+  - ".cache/"
+  - "ollama_models/"

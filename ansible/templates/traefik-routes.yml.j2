@@ -1,0 +1,47 @@
+http:
+  routers:
+    traefik-dashboard:
+      rule: "Host(`{{ traefik_dashboard_host }}`)"
+      entryPoints:
+        - websecure
+      service: api@internal
+      middlewares:
+        - traefik-auth
+      tls:
+        certResolver: letsencrypt
+
+    nextcloud:
+      rule: "Host(`{{ nextcloud_public_host }}`)"
+      entryPoints:
+        - websecure
+      service: nextcloud
+      middlewares:
+        - nextcloud-headers
+        - nextcloud-redirectregex
+      tls:
+        certResolver: letsencrypt
+
+  services:
+    nextcloud:
+      loadBalancer:
+        servers:
+          - url: "http://nextcloud-app-1:80"
+
+  middlewares:
+    traefik-auth:
+      basicAuth:
+        usersFile: /dynamic/users.htpasswd
+
+    nextcloud-headers:
+      headers:
+        stsSeconds: 15552000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        forceSTSHeader: true
+        referrerPolicy: no-referrer
+
+    nextcloud-redirectregex:
+      redirectRegex:
+        permanent: true
+        regex: "https://(.*)/.well-known/(card|cal)dav"
+        replacement: "https://${1}/remote.php/dav/"

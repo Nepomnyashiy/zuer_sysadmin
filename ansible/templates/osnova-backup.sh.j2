@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+BACKUP_ROOT="{{ backup_root }}"
+STAMP="$(date +%F_%H-%M-%S)"
+DEST="${BACKUP_ROOT}/${STAMP}"
+LATEST="${BACKUP_ROOT}/latest"
+LOG="/var/log/osnova-backup.log"
+
+mkdir -p "$DEST"
+
+log() {
+  printf '%s %s\n' "$(date --iso-8601=seconds)" "$*" | tee -a "$LOG"
+}
+
+if ! mountpoint -q "{{ ufiles_mount }}"; then
+  log "ERROR: {{ ufiles_mount }} is not mounted"
+  exit 1
+fi
+
+EXCLUDES=()
+{% for item in backup_excludes %}
+EXCLUDES+=(--exclude='{{ item }}')
+{% endfor %}
+
+log "Backup started: $DEST"
+
+rsync -a --delete "${EXCLUDES[@]}" /etc "$DEST/"
+rsync -a --delete "${EXCLUDES[@]}" /home/{{ server_admin_user }}/ "$DEST/home-{{ server_admin_user }}/"
+rsync -a --delete "${EXCLUDES[@]}" /run/media/{{ server_admin_user }}/godny_soft/ "$DEST/godny_soft/"
+
+if [ -d "{{ nextcloud_root }}" ]; then
+  rsync -a --delete "{{ nextcloud_root }}/" "$DEST/nextcloud-config/"
+fi
+
+dpkg --get-selections > "$DEST/package.list"
+docker ps --format '{{ "{{" }} json . {{ "}}" }}' > "$DEST/docker-ps.jsonl" 2>/dev/null || true
+docker volume ls --format '{{ "{{" }} json . {{ "}}" }}' > "$DEST/docker-volumes.jsonl" 2>/dev/null || true
+
+ln -sfn "$DEST" "$LATEST"
+log "Backup completed: $DEST"
+

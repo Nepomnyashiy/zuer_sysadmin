@@ -1,0 +1,6 @@
+---
+# Copy to vault.yml with `ansible-vault create ansible/group_vars/vault.yml`.
+vault_nextcloud_admin_password: "replace-with-strong-admin-password"
+vault_nextcloud_db_password: "replace-with-strong-db-password"
+vault_nextcloud_db_root_password: "replace-with-strong-db-root-password"
+

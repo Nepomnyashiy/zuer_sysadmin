@@ -1,0 +1,20 @@
+@	IN SOA ns1.spaceweb.ru.  dns1.sweb.ru.  (
+		2025122621
+
+		8H
+		2H
+		2W
+		10m
+) 
+	IN	NS	ns1.spaceweb.ru.
+	IN	NS	ns2.spaceweb.ru.
+	IN	NS	ns3.spaceweb.pro.
+	IN	NS	ns4.spaceweb.pro.
+	IN	MX	10	mx1.spaceweb.ru.
+	IN	MX	20	mx2.spaceweb.ru.
+autoconfig	IN	CNAME	autoconfig.spaceweb.ru.
+autodiscover	IN	CNAME	autodiscover.spaceweb.ru.
+clt	IN	A	77.110.124.139
+_autodiscover._tcp	86400	IN	SRV	5	0	443	autodiscover.spaceweb.ru.
+@	600	IN	TXT	"_globalsign-domain-verification=l0xkZ2BhR7ITEm_mFY98SljmURQLzZpX-QvrTXKLEF"
+@	600	IN	TXT	"v=spf1 include:_spf.spaceweb.ru ~all"

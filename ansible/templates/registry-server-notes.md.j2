@@ -1,0 +1,32 @@
+# Заметки по серверу {{ expected_hostname }}
+
+## Сеть
+
+- LAN IP сервера: {{ expected_lan_ip }}
+- Роутер: 192.168.0.1
+- Public IP: {{ public_ipv4 }}
+- Домен: {{ public_domain }}
+
+## Router port forwarding
+
+- 80/tcp -> {{ expected_lan_ip }}:80
+- 443/tcp -> {{ expected_lan_ip }}:443
+
+## DNS
+
+- {{ public_domain }} A {{ public_ipv4 }}
+- www A {{ public_ipv4 }}
+- * A {{ public_ipv4 }}
+- {{ nextcloud_public_host }} работает через wildcard
+
+## Reverse proxy
+
+- Traefik
+- Docker network: proxy
+- SSL: Let's Encrypt HTTP-01
+
+## Первый публичный сервис
+
+- Nextcloud: https://{{ nextcloud_public_host }}
+- Используется существующий стек: {{ nextcloud_root }}
+- Новый стек `/srv/projects/nextcloud` не создавался, чтобы не дублировать данные и Docker volumes.

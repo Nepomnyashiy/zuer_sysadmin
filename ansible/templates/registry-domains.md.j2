@@ -1,0 +1,12 @@
+# Реестр доменов {{ public_domain }}
+
+| Поддомен | Назначение | Проект | Доступ | Статус |
+|---|---|---|---|---|
+| {{ public_domain }} | основной сайт | landing | public | dns-ready |
+| www.{{ public_domain }} | основной сайт | landing | public | dns-ready |
+| {{ nextcloud_public_host }} | Nextcloud | existing-nextcloud | public | active |
+| {{ traefik_dashboard_host }} | Traefik dashboard | proxy | private/basic-auth | active |
+| anaconda.{{ public_domain }} | Anaconda | anaconda | public | planned |
+| kolos.{{ public_domain }} | Колос | kolos | public | planned |
+| ai.{{ public_domain }} | AI Lab | ai | private | planned |
+| grafana.{{ public_domain }} | Grafana | monitoring | private/vpn | planned |

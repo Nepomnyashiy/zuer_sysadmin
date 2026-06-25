@@ -1,0 +1,6 @@
+# Реестр сервисов {{ expected_hostname }}
+
+| Сервис | Путь | Compose | Домен | Сеть | Статус |
+|---|---|---|---|---|---|
+| traefik | {{ traefik_root }} | docker-compose.yml | {{ traefik_dashboard_host }} | proxy | active |
+| nextcloud | {{ nextcloud_root }} | docker-compose.yml | {{ nextcloud_public_host }} | proxy + internal | active |

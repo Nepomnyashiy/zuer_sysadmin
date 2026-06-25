@@ -1,0 +1,31 @@
+# Реестр портов сервера {{ expected_hostname }}
+
+## Публичные порты
+
+| Порт | Назначение | Где открыт |
+|---:|---|---|
+| 80/tcp | HTTP / Let's Encrypt / redirect | router + UFW + Traefik |
+| 443/tcp | HTTPS / public web | router + UFW + Traefik |
+
+## Существующие локальные/административные порты
+
+| Порт | Назначение | Политика |
+|---:|---|---|
+| 22/tcp | SSH | не менять без отдельного подтверждения |
+| 3389/tcp | XRDP | только LAN/VPN/SSH-туннель, не публиковать на роутере |
+| {{ nextcloud_http_port }}/tcp | Nextcloud local diagnostic bind | {{ nextcloud_bind_addr }} only |
+
+## Не открывать наружу
+
+| Порт | Назначение | Причина |
+|---:|---|---|
+| 21 | FTP | небезопасно |
+| 5432 | PostgreSQL | только internal network |
+| 3306 | MySQL/MariaDB | только internal network |
+| 6379 | Redis | только internal network |
+| 27017 | MongoDB | только internal network |
+| 9000 | MinIO API | только private/VPN |
+| 9001 | MinIO Console | только private/VPN |
+| 3000 | Frontend dev | через Traefik |
+| 8000 | FastAPI/Django | через Traefik |
+| 8080 | Internal web | через Traefik |
