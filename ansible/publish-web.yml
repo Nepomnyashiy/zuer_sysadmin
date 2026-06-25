@@ -220,7 +220,20 @@
       register: traefik_users_file
       when: not ansible_check_mode
 
-    - name: Create Traefik dashboard htpasswd file
+    - name: Verify Traefik dashboard htpasswd matches stored password
+      ansible.builtin.command: >-
+        htpasswd -vb {{ traefik_root }}/dynamic/users.htpasswd
+        {{ traefik_dashboard_user }}
+        {{ traefik_dashboard_password_slurp.content | b64decode | trim }}
+      register: traefik_htpasswd_verify
+      changed_when: false
+      failed_when: false
+      no_log: true
+      when:
+        - not ansible_check_mode
+        - traefik_users_file.stat.exists
+
+    - name: Create or repair Traefik dashboard htpasswd file
       ansible.builtin.command:
         argv:
           - htpasswd
@@ -228,11 +241,11 @@
           - -iB
           - "{{ traefik_root }}/dynamic/users.htpasswd"
           - "{{ traefik_dashboard_user }}"
-        stdin: "{{ traefik_dashboard_password_slurp.content | b64decode }}"
+        stdin: "{{ traefik_dashboard_password_slurp.content | b64decode | trim }}"
       no_log: true
       when:
         - not ansible_check_mode
-        - not traefik_users_file.stat.exists
+        - not traefik_users_file.stat.exists or traefik_htpasswd_verify.rc != 0
 
     - name: Ensure Traefik users file permissions
       ansible.builtin.file:
