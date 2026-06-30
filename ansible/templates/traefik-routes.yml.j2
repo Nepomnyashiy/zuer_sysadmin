@@ -21,11 +21,40 @@ http:
       tls:
         certResolver: letsencrypt
 
+    ai-service:
+      rule: "Host(`{{ ai_service_public_host }}`)"
+      entryPoints:
+        - websecure
+      service: openwebui-svc
+      middlewares:
+        - openwebui-compress
+        - openwebui-headers
+      tls:
+        certResolver: letsencrypt
+
+    ai-service-assets:
+      rule: "Host(`{{ ai_service_public_host }}`) && PathPrefix(`/_app/immutable/`)"
+      entryPoints:
+        - websecure
+      service: openwebui-svc
+      priority: 100
+      middlewares:
+        - openwebui-compress
+        - openwebui-immutable-cache
+        - openwebui-headers
+      tls:
+        certResolver: letsencrypt
+
   services:
     nextcloud:
       loadBalancer:
         servers:
           - url: "http://nextcloud-app-1:80"
+
+    openwebui-svc:
+      loadBalancer:
+        servers:
+          - url: "http://open-webui:8080"
 
   middlewares:
     traefik-auth:
@@ -45,3 +74,19 @@ http:
         permanent: true
         regex: "https://(.*)/.well-known/(card|cal)dav"
         replacement: "https://${1}/remote.php/dav/"
+
+    openwebui-compress:
+      compress: {}
+
+    openwebui-headers:
+      headers:
+        stsSeconds: 15552000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        forceSTSHeader: true
+        referrerPolicy: no-referrer
+
+    openwebui-immutable-cache:
+      headers:
+        customResponseHeaders:
+          Cache-Control: "public, max-age=31536000, immutable"

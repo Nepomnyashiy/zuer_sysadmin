@@ -2,6 +2,142 @@
 
 ---
 
+## Запись #18: OpenWebUI, LiteLLM и локальные модели Black Mamba
+
+- **Дата:** 30.06.2026
+- **Инициатор:** `nsadmin`
+- **Задача:** Исправить пропадание моделей OpenWebUI, медленную загрузку UI,
+  залипающий выбор модели у обычного пользователя и обрывы длинных ответов
+  `gemma4:e4b`.
+
+### Диагностика
+
+1. `local-open-webui` использовал неверный `OLLAMA_BASE_URL`, из-за чего
+   `/api/models` ожидал timeout и модели периодически исчезали.
+2. OpenWebUI продолжал использовать старый LiteLLM key, что давало ошибки
+   `No connected db` и пустой список OpenAI/LiteLLM-моделей.
+3. Healthcheck OpenWebUI был сломан: в образе нет `wget`, контейнеры постоянно
+   отображались `unhealthy`.
+4. Traefik отдавал OpenWebUI static assets без compression/cache headers.
+5. В UI обычного пользователя модели дублировались из двух источников:
+   Ollama и LiteLLM/OpenAI. Дополнительно у `test@test.com` было сохранено
+   `settings.ui.models=["gemma4:e4b"]`, что возвращало выбор модели назад.
+6. Длинные ответы `gemma4:e4b` обрывались из-за runtime-контекста Ollama
+   `n_ctx=4096`; в логах были `truncated = 1` и завершение по `length`.
+
+### Решение
+
+1. OpenWebUI переведен на прямой Ollama source для UI; LiteLLM оставлен для
+   CLI-агентов Qwen/OpenCode/Hermes.
+2. В OpenWebUI убраны дубли моделей из LiteLLM/OpenAI.
+3. Для группы `Пользователи` оставлены только разрешенные локальные модели:
+   `gemma4:e4b`, `gemma4-fast:e4b`, `qwen2.5-coder:7b`, `hermes3:8b`.
+4. Добавлен alias `gemma4-fast:e4b` поверх `gemma4:e4b` с `think=false`.
+5. Для `gemma4:e4b` и `gemma4-fast:e4b` заданы параметры
+   `num_ctx=8192`, `num_predict=2048`, `keep_alive=30m`.
+6. У пользователя `test@test.com` удалено sticky-поле `settings.ui.models`.
+7. В Traefik template добавлены compression headers для OpenWebUI и
+   immutable cache для `/_app/immutable/`.
+8. LiteLLM каталог очищен от внешних моделей и оставлен только под локальные
+   Ollama-модели.
+
+### Проверки
+
+```text
+docker ps:
+local-open-webui      healthy
+local-open-webui-ai   healthy
+local-litellm         up
+local-ollama          up
+
+OpenWebUI /api/models под test@test.com:
+gemma4:e4b
+gemma4-fast:e4b
+qwen2.5-coder:7b
+hermes3:8b
+
+gemma4-fast:e4b:
+первый content chunk примерно за 0.45s
+
+Длинный ответ через OpenWebUI:
+chars=8045
+finish=stop
+Ollama n_ctx=8192
+truncated=0
+```
+
+### Примечания
+
+- В live Traefik найден дублирующий router на `ai.godny.tech`; шаблон
+  исправлен, но удаление лишнего live-файла `/srv/proxy/traefik/dynamic/openwebui-ai.yml`
+  требует root-доступа.
+- Старые чаты OpenWebUI могут хранить выбранную модель в данных самого чата;
+  для проверки selector нужно открывать новый чат или обновить страницу.
+
+---
+
+## Запись #17: Исправление mountpoint `godny_soft` и external storage Nextcloud
+
+- **Дата:** 26.06.2026
+- **Инициатор:** `nsadmin`
+- **Задача:** Убрать ошибочное монтирование диска как `godny_soft1` и вернуть
+  корректную видимость `x-files`, `mega files`, `godny soft` в Nextcloud.
+
+### Диагностика
+
+1. Диск с label `godny_soft` был фактически смонтирован как
+   `/run/media/nsadmin/godny_soft1`.
+2. Путь `/run/media/nsadmin/godny_soft` был занят пустым каталогом-заглушкой
+   `soft/black_mamba/local_llm/postgres`.
+3. Docker/Nextcloud уже использовал `/run/media/nsadmin/godny_soft`, поэтому в
+   контейнер попадала заглушка, а не реальный диск.
+4. `x-files`, `mega-files`, `/mnt/ufiles` и реальный `godny_soft` на хосте были
+   смонтированы `rw`; `ro` в агентской среде был sandbox-эффектом.
+
+### Решение
+
+1. Заглушка перенесена в
+   `/run/media/nsadmin/godny_soft.stale-20260626-1225`.
+2. Создан правильный mountpoint `/run/media/nsadmin/godny_soft`.
+3. Текущий реальный mount `/run/media/nsadmin/godny_soft1` временно привязан к
+   правильному пути через bind mount без размонтирования открытых процессов.
+4. `nextcloud-app-1` принудительно пересоздан, чтобы Docker заново подключил
+   `/run/media/nsadmin/godny_soft`.
+5. В `/etc/fstab` добавлена постоянная запись:
+   `UUID=e5bd37e6-80d3-4507-8201-e9cea02f61a4 /run/media/nsadmin/godny_soft ext4 defaults,nofail,x-gvfs-show 0 2`.
+6. Создан `/etc/tmpfiles.d/godny-soft.conf` для подготовки `/run/media/nsadmin`
+   и `/run/media/nsadmin/godny_soft` при загрузке.
+7. Создан drop-in `/etc/systemd/system/docker.service.d/10-storage-mounts.conf`
+   с `RequiresMountsFor=/mnt/ufiles /srv/storage/x-files /srv/storage/mega-files /run/media/nsadmin/godny_soft`.
+8. Выполнен `systemctl daemon-reload`.
+
+### Проверки
+
+```text
+findmnt --verify --fstab --verbose:
+0 parse errors, 0 errors
+
+Nextcloud external storage:
+/x-files    -> status: ok
+/mega files -> status: ok
+/godny soft -> status: ok
+
+Контейнер видит содержимое:
+/mnt/godny-soft -> GHE, bratusin.tar.xz, docs, sibintek, site, soft
+/mnt/x-files    -> 3 МАМБЕТА, ANBERNIC, NINTENDO WII, ORACLE DBA, RECs, ...
+/mnt/mega-files -> CloudMAIL, DevOps, Games, SOFT, SteamLibrary, ...
+```
+
+### Примечания
+
+- До закрытия текущих процессов старый путь `godny_soft1` может оставаться
+  активным как исходный udisks mount; после перезагрузки должен использоваться
+  стабильный путь `/run/media/nsadmin/godny_soft`.
+- В журнале одновременно замечены внешние неуспешные SSH-попытки root с
+  `175.214.123.177`; это отдельная security-задача.
+
+---
+
 ## Запись #16: Hiddify proxy для SSH/shell-сессий
 
 - **Дата:** 25.06.2026
