@@ -20,6 +20,10 @@
 - Добавлен шаблон нового приложения `apps/_template`.
 - Добавлены стартовые manifests для `barber`, `anaconda`, `kolos`,
   `black-mamba`.
+- На хосте установлен `k3s v1.36.2+k3s1`.
+- Установлен `ingress-nginx` через Helm с NodePort `30080/30443`.
+- Применён platform base: namespaces, quotas, limit ranges, network policies,
+  `osnova-local-retain` StorageClass и local registry на NodePort `30500`.
 
 ## Изменённые файлы
 
@@ -53,6 +57,10 @@ bash -n scripts/k8s/*.sh scripts/backup/postgres-dump.sh
 python3 YAML parse check
 make k8s-preflight
 make k8s-install-check
+sudo make k8s-install
+make k8s-install-ingress
+kubectl apply -f k8s/base/namespaces/namespaces.yaml
+kubectl apply -f k8s/base/policies/limitranges.yaml ...
 ```
 
 ## Проверки
@@ -61,30 +69,31 @@ make k8s-install-check
 - YAML parse: успешно.
 - `make k8s-install-check`: успешно, изменений хоста нет.
 - `make k8s-preflight`: корректно остановился на read-only mounts.
-- `kubectl`/`helm`/`kustomize` отсутствуют в текущем `PATH`, поэтому
-  `kustomize build`, `kubectl dry-run` и `kubectl diff` не выполнялись.
+- `kubectl get nodes -o wide`: node `zuer` Ready.
+- `kubectl get pods -A`: system pods Running.
+- `ingress-nginx`: controller Running, service `80:30080`, `443:30443`.
+- Local registry: pod Running, PVC Bound, `curl http://127.0.0.1:30500/v2/`
+  возвращает `200`.
+- `kubectl apply --dry-run=server` для base manifests: успешно.
+- `kubectl diff` для base manifests: без diff.
 
 ## Результат
 
-Репозиторий получил стартовый Kubernetes platform scaffold. Runtime хоста и
-кластер не изменялись.
+Репозиторий получил стартовый Kubernetes platform scaffold. Runtime хоста
+подготовлен: k3s, ingress-nginx и platform base установлены.
 
 ## Риски
 
-- Применение кластера на хосте пока не выполнялось.
 - GPU runtime для `black_mamba/ollama` требует отдельного preflight.
-- `/mnt/ufiles` и `/run/media/nsadmin/godny_soft` в текущей execution-среде
-  видны как `ro`; перед реальным deploy нужно проверить это на хосте вне
-  sandbox.
-- Docker доступ из текущей сессии ограничен; сборку/push образов выполнять от
-  пользователя с доступом к Docker или через `sudo`.
+- k3s default `local-path` StorageClass имеет `reclaimPolicy: Delete`; для
+  наших PVC используется отдельный `osnova-local-retain`.
+- k3s/flannel не enforcing NetworkPolicy, policies пока фиксируют intent.
 
 ## Что осталось
 
-- Установить `kubectl`, `helm`, `kustomize`, `k3s`.
-- Прогнать `kubectl apply --dry-run=server` и `kubectl diff`.
 - Добавить реальные `.env`/Secrets локально.
 - Собрать и отправить app images в local registry.
+- Перенести первое приложение `barber`.
 - Перед `kolos` и `black_mamba` выполнить backup/restore drill.
 
 ## Rollback

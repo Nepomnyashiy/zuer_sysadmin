@@ -11,6 +11,8 @@ if ! command -v kubectl >/dev/null 2>&1; then
   exit 1
 fi
 
+export KUBECONFIG="${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}"
+
 kubectl create namespace ingress --dry-run=client -o yaml | kubectl apply -f -
 
 helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
@@ -23,4 +25,3 @@ helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
   --timeout 10m
 
 kubectl get pods,svc -n ingress
-

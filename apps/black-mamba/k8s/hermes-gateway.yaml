@@ -64,6 +64,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: hermes-data
 spec:
+  storageClassName: osnova-local-retain
   accessModes:
     - ReadWriteOnce
   resources:
@@ -82,4 +83,3 @@ spec:
     - name: http
       port: 9000
       targetPort: http
-

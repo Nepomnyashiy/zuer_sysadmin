@@ -3,9 +3,9 @@ kind: PersistentVolumeClaim
 metadata:
   name: kolos-uploads
 spec:
+  storageClassName: osnova-local-retain
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
       storage: 20Gi
-

@@ -39,7 +39,7 @@ hosts по одному и откатывать маршрут обратно н
 - Kubernetes runtime: `k3s` single-node.
 - Ingress: `ingress-nginx` внутри Kubernetes, Docker Traefik как edge proxy.
 - Storage: `local-path-provisioner` на `/mnt/ufiles/k8s/local-path`.
-- Registry: локальный registry `127.0.0.1:5000` для первых релизов.
+- Registry: локальный registry `127.0.0.1:30500` для первых релизов.
 - Secrets: локальные `.env` и генерация Kubernetes Secret без plain YAML в Git.
 - Observability: сначала health/logs/resources, затем Prometheus/Grafana/Loki.
 - Backup: PostgreSQL dumps и архивы PVC/host-path данных.

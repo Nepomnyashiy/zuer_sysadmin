@@ -3,6 +3,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: open-webui-data
 spec:
+  storageClassName: osnova-local-retain
   accessModes:
     - ReadWriteOnce
   resources:
@@ -14,6 +15,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: open-webui-ai-data
 spec:
+  storageClassName: osnova-local-retain
   accessModes:
     - ReadWriteOnce
   resources:
@@ -149,4 +151,3 @@ spec:
     - name: http
       port: 8080
       targetPort: http
-

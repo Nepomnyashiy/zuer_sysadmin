@@ -43,6 +43,7 @@ metadata:
   name: local-registry-data
   namespace: ingress
 spec:
+  storageClassName: osnova-local-retain
   accessModes:
     - ReadWriteOnce
   resources:
@@ -65,4 +66,3 @@ spec:
       port: 5000
       targetPort: http
       nodePort: 30500
-
