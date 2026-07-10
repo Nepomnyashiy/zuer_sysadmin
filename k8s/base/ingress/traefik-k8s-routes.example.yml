@@ -1,0 +1,40 @@
+http:
+  routers:
+    k8s-barber:
+      rule: "Host(`barber.godny.tech`)"
+      entryPoints:
+        - websecure
+      service: k8s-ingress-http
+      tls:
+        certResolver: letsencrypt
+
+    k8s-anaconda:
+      rule: "Host(`anaconda.godny.tech`) || Host(`api.anaconda.godny.tech`)"
+      entryPoints:
+        - websecure
+      service: k8s-ingress-http
+      tls:
+        certResolver: letsencrypt
+
+    k8s-kolos:
+      rule: "Host(`agro.godny.tech`) || Host(`api.agro.godny.tech`)"
+      entryPoints:
+        - websecure
+      service: k8s-ingress-http
+      tls:
+        certResolver: letsencrypt
+
+    k8s-black-mamba:
+      rule: "Host(`ai.godny.tech`) || Host(`llm.godny.tech`) || Host(`bm-api.godny.tech`)"
+      entryPoints:
+        - websecure
+      service: k8s-ingress-http
+      tls:
+        certResolver: letsencrypt
+
+  services:
+    k8s-ingress-http:
+      loadBalancer:
+        servers:
+          - url: "http://127.0.0.1:30080"
+

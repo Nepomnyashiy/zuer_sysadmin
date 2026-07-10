@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hermes-gateway
+  labels:
+    app.kubernetes.io/name: hermes-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hermes-gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hermes-gateway
+    spec:
+      containers:
+        - name: gateway
+          image: 127.0.0.1:30500/black-mamba/hermes-gateway:local
+          imagePullPolicy: IfNotPresent
+          command:
+            - hermes
+            - gateway
+            - start
+          ports:
+            - name: http
+              containerPort: 9000
+          env:
+            - name: BM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: black-mamba-secret
+                  key: BM_JWT_SECRET
+          envFrom:
+            - configMapRef:
+                name: black-mamba-config
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 60
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1500m
+              memory: 2Gi
+          volumeMounts:
+            - name: data
+              mountPath: /data/hermes
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: hermes-data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hermes-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hermes-gateway
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: hermes-gateway
+  ports:
+    - name: http
+      port: 9000
+      targetPort: http
+

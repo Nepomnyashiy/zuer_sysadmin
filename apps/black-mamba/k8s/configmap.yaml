@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: black-mamba-config
+data:
+  POSTGRES_DB: black_mamba
+  POSTGRES_USER: black_mamba
+  PGHOST: black-mamba-pgvector
+  PGPORT: "5432"
+  PGDATABASE: black_mamba
+  PGUSER: black_mamba
+  PGSSLMODE: disable
+  OLLAMA_BASE_URL: http://ollama:11434
+  EMBEDDING_MODEL: nomic-embed-text
+  EXPERT_MODEL: qwen2.5-coder:7b
+  KB_TOP_K: "8"
+  KB_MIN_SCORE: "0.2"
+  FRONTEND_ORIGIN: https://ai.godny.tech
+  WEBUI_AUTH: "True"
+  WEBUI_NAME: Godny AI
+  ENABLE_OLLAMA_API: "True"
+  RAG_EMBEDDING_ENGINE: ollama
+  RAG_EMBEDDING_MODEL: nomic-embed-text
+  RAG_OLLAMA_BASE_URL: http://ollama:11434
+  HERMES_DATA_DIR: /data/hermes
+  BM_API_URL: http://bm-api:8000
+

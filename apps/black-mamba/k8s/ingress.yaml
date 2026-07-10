@@ -1,0 +1,38 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: black-mamba
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: ai.godny.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: open-webui-ai
+                port:
+                  name: http
+    - host: llm.godny.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: litellm
+                port:
+                  name: http
+    - host: bm-api.godny.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: bm-api
+                port:
+                  name: http
+

@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kolos
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: agro.godny.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kolos-frontend
+                port:
+                  name: http
+    - host: api.agro.godny.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kolos-backend
+                port:
+                  name: http
+

@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kolos-frontend
+  labels:
+    app.kubernetes.io/name: kolos-frontend
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kolos-frontend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kolos-frontend
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: frontend
+          image: 127.0.0.1:30500/kolos/frontend:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: kolos-config
+            - secretRef:
+                name: kolos-secret
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 60
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1500m
+              memory: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kolos-frontend
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: kolos-frontend
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+

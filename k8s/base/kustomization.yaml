@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespaces/namespaces.yaml
+  - policies/limitranges.yaml
+  - policies/resourcequotas.yaml
+  - policies/networkpolicies.yaml
+  - storage/storageclass.yaml
+  - registry/registry.yaml
+

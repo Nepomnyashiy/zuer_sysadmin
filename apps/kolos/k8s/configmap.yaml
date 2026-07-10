@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kolos-config
+data:
+  DATABASE_CLIENT: postgres
+  DATABASE_HOST: kolos-postgres
+  DATABASE_PORT: "5432"
+  DATABASE_NAME: strapi
+  DATABASE_USERNAME: strapi
+  NODE_ENV: production
+  STRAPI_API_URL: http://kolos-backend:1337
+  NEXT_PUBLIC_API_URL: https://api.agro.godny.tech
+  YOOKASSA_RETURN_URL: https://agro.godny.tech/payment/result
+  YOOKASSA_MOCK_PAYMENT: "true"
+

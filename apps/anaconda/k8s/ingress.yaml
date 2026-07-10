@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: anaconda
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: anaconda.godny.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: anaconda-web
+                port:
+                  name: http
+    - host: api.anaconda.godny.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: anaconda-api
+                port:
+                  name: http
+

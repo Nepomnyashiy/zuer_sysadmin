@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ingress
+  labels:
+    app.kubernetes.io/part-of: osnova-platform
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    app.kubernetes.io/part-of: osnova-platform
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: databases
+  labels:
+    app.kubernetes.io/part-of: osnova-platform
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ai-platform
+  labels:
+    app.kubernetes.io/part-of: osnova-platform
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: anaconda
+  labels:
+    app.kubernetes.io/part-of: osnova-platform
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kolos
+  labels:
+    app.kubernetes.io/part-of: osnova-platform
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: barber
+  labels:
+    app.kubernetes.io/part-of: osnova-platform
+

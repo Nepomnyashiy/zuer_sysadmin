@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bm-api
+  labels:
+    app.kubernetes.io/name: bm-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: bm-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: bm-api
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: api
+          image: 127.0.0.1:30500/black-mamba/bm-api:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: black-mamba-secret
+                  key: POSTGRES_PASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: black-mamba-secret
+                  key: BM_JWT_SECRET
+          envFrom:
+            - configMapRef:
+                name: black-mamba-config
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 40
+          resources:
+            requests:
+              cpu: 300m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 3Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bm-api
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: bm-api
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+
