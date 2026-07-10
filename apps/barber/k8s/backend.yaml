@@ -34,12 +34,12 @@ spec:
                 name: barber-secret
           readinessProbe:
             httpGet:
-              path: /
+              path: /health
               port: http
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /
+              path: /health
               port: http
             initialDelaySeconds: 30
             periodSeconds: 20
@@ -63,4 +63,3 @@ spec:
     - name: http
       port: 8000
       targetPort: http
-

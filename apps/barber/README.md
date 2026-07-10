@@ -22,9 +22,8 @@ make app-diff APP=barber
 
 ## Важно
 
-Текущий frontend Dockerfile запускает `npm run dev`. Для production нужно
-перевести его на `next build` и `next start`, иначе Kubernetes будет запускать
-dev-сервер.
+Frontend Dockerfile переведен на production-сборку: `npm run build` во время
+build stage и `npm run start` на runtime.
 
-Backend пока не имеет `/health`; readiness/liveness временно используют `/`.
-
+Backend имеет `/health`, который проверяет подключение к PostgreSQL через
+`SELECT 1`. Readiness/liveness probes используют этот endpoint.
