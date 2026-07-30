@@ -90,6 +90,8 @@ sysadmin/
   обновление `/srv/registry`.
 - `ansible/ssh-access.yml` - добавление SSH-ключей устройств и опциональный
   key-only hardening.
+- `ansible/desktop-settings.yml` - воспроизводимые настройки GNOME, включая
+  вставку выделенного текста средней кнопкой мыши.
 - `ansible/desktop-bookmarks.yml` - добавление закладок storage-дисков в
   графический файловый менеджер.
 
@@ -144,6 +146,16 @@ GUI-закладки дисков:
 ```bash
 ansible-playbook -i ansible/inventory.ini ansible/desktop-bookmarks.yml
 ```
+
+Настройки GNOME можно проверить и применить отдельно от полного bootstrap:
+
+```bash
+sudo ansible-playbook -i ansible/inventory.ini ansible/desktop-settings.yml --check --diff
+sudo ansible-playbook -i ansible/inventory.ini ansible/desktop-settings.yml
+```
+
+Playbook задаёт системное значение `gtk-enable-primary-paste=true`, обновляет
+базу `dconf` и проверяет эффективное значение для пользователя `nsadmin`.
 
 `publish-web.yml` делает только web-публикацию:
 

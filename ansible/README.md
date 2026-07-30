@@ -167,3 +167,19 @@ findmnt -T /srv/storage/x-files -no TARGET,SOURCE,FSTYPE,OPTIONS
 findmnt -T /srv/storage/mega-files -no TARGET,SOURCE,FSTYPE,OPTIONS
 findmnt -T /run/media/nsadmin/godny_soft -no TARGET,SOURCE,FSTYPE,OPTIONS
 ```
+
+## GNOME Desktop Settings
+
+The main bootstrap imports `desktop-settings.yml`. It enables GNOME primary
+selection paste, so selecting text and pressing the middle mouse button pastes
+the selection:
+
+```bash
+sudo ansible-playbook -i ansible/inventory.ini ansible/desktop-settings.yml --check --diff
+sudo ansible-playbook -i ansible/inventory.ini ansible/desktop-settings.yml
+```
+
+The playbook writes the system default to
+`/etc/dconf/db/local.d/00-osnova-desktop`, runs `dconf update`, and verifies the
+effective value for `server_admin_user`. It does not lock the setting, so a
+user-level dconf override remains possible.

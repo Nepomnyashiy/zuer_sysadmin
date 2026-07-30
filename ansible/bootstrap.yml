@@ -672,3 +672,6 @@
       when:
         - backup_enabled
         - not ansible_check_mode
+
+- name: Apply reproducible GNOME desktop defaults
+  ansible.builtin.import_playbook: desktop-settings.yml

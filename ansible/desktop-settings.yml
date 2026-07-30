@@ -1,0 +1,99 @@
+---
+- name: Configure GNOME desktop defaults
+  hosts: main
+  become: true
+  gather_facts: false
+
+  vars:
+    desktop_primary_paste_enabled: true
+    desktop_primary_paste_value: "{{ desktop_primary_paste_enabled | bool | ternary('true', 'false') }}"
+
+  handlers:
+    - name: Update dconf database
+      ansible.builtin.command: dconf update
+      changed_when: true
+      when: not ansible_check_mode
+
+  tasks:
+    - name: Install GNOME settings dependencies
+      ansible.builtin.apt:
+        name:
+          - dconf-cli
+          - gsettings-desktop-schemas
+        state: present
+
+    - name: Ensure dconf configuration directories exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      loop:
+        - /etc/dconf/profile
+        - /etc/dconf/db/local.d
+
+    - name: Ensure dconf user profile starts with the user database
+      ansible.builtin.lineinfile:
+        path: /etc/dconf/profile/user
+        line: "user-db:user"
+        regexp: "^user-db:user$"
+        insertbefore: BOF
+        create: true
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Update dconf database
+
+    - name: Enable the local system dconf database
+      ansible.builtin.lineinfile:
+        path: /etc/dconf/profile/user
+        line: "system-db:local"
+        regexp: "^system-db:local$"
+        insertafter: "^user-db:user$"
+        create: true
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Update dconf database
+
+    - name: Configure middle-click primary selection paste
+      ansible.builtin.copy:
+        dest: /etc/dconf/db/local.d/00-osnova-desktop
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [org/gnome/desktop/interface]
+          gtk-enable-primary-paste={{ desktop_primary_paste_value }}
+      notify: Update dconf database
+
+    - name: Apply pending dconf database changes
+      ansible.builtin.meta: flush_handlers
+
+    - name: Read effective primary selection paste setting
+      ansible.builtin.command:
+        argv:
+          - gsettings
+          - get
+          - org.gnome.desktop.interface
+          - gtk-enable-primary-paste
+      become_user: "{{ server_admin_user }}"
+      environment:
+        HOME: "/home/{{ server_admin_user }}"
+      register: desktop_primary_paste_check
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Verify primary selection paste setting
+      ansible.builtin.assert:
+        that:
+          - desktop_primary_paste_check.stdout | trim == desktop_primary_paste_value
+        fail_msg: >-
+          GNOME primary selection paste is not {{ desktop_primary_paste_value }}
+          for {{ server_admin_user }}. A user-level dconf override may be masking
+          the system default.
+        success_msg: >-
+          GNOME primary selection paste is {{ desktop_primary_paste_value }}
+          for {{ server_admin_user }}.
+      when: not ansible_check_mode
