@@ -1,0 +1,24 @@
+[Unit]
+Description=OSNOVA backup maintenance: %i
+Wants=network-online.target
+After=network-online.target osnova-backup.service
+RequiresMountsFor={{ ufiles_mount }}
+
+[Service]
+Type=oneshot
+EnvironmentFile={{ backup_environment_path }}
+ExecStart={{ backup_ctl_path }} %i
+UMask=0077
+Nice=15
+IOSchedulingClass=idle
+IOSchedulingPriority=7
+TimeoutStartSec=12h
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+ReadWritePaths={{ backup_repository | dirname }} {{ backup_state_dir }} {{ backup_cache_dir }} /run/lock /tmp

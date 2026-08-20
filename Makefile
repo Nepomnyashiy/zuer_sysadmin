@@ -6,6 +6,7 @@ K8S_OVERLAY ?= k8s/overlays/local
 APP ?=
 IMAGE_TAG ?= $(shell date +%Y%m%d)-local
 REGISTRY ?= 127.0.0.1:30500
+BACKUP_CTL ?= /usr/local/sbin/osnova-backupctl
 
 .PHONY: help
 help:
@@ -31,6 +32,21 @@ help:
 	@printf '%s\n' '  make app-dry-run APP=barber'
 	@printf '%s\n' '  make app-diff APP=barber'
 	@printf '%s\n' '  make app-apply APP=barber'
+	@printf '%s\n' ''
+	@printf '%s\n' 'Backup:'
+	@printf '%s\n' '  make backup-preflight'
+	@printf '%s\n' '  make backup-static-check'
+	@printf '%s\n' '  make backup-ansible-check'
+	@printf '%s\n' '  make backup-ansible-apply'
+	@printf '%s\n' '  make backup-init'
+	@printf '%s\n' '  make backup-run'
+	@printf '%s\n' '  make backup-status'
+	@printf '%s\n' '  make backup-snapshots'
+	@printf '%s\n' '  make backup-retention-dry-run'
+	@printf '%s\n' '  make backup-check'
+	@printf '%s\n' '  make backup-check-data'
+	@printf '%s\n' '  make backup-prune'
+	@printf '%s\n' '  make backup-restore-smoke'
 
 .PHONY: k8s-preflight
 k8s-preflight:
@@ -101,3 +117,55 @@ backup-postgres:
 	@test -n "$(DB)" || (echo 'DB is required' >&2; exit 2)
 	@test -n "$(USER)" || (echo 'USER is required' >&2; exit 2)
 	./scripts/backup/postgres-dump.sh "$(NS)" "$(APP)" "$(DB)" "$(USER)"
+
+.PHONY: backup-preflight
+backup-preflight:
+	sudo $(BACKUP_CTL) preflight
+
+.PHONY: backup-static-check
+backup-static-check:
+	./scripts/backup/check-backup-code.sh
+
+.PHONY: backup-ansible-check
+backup-ansible-check:
+	sudo ansible-playbook -i ansible/inventory.ini ansible/backup.yml --check --diff
+
+.PHONY: backup-ansible-apply
+backup-ansible-apply:
+	sudo ansible-playbook -i ansible/inventory.ini ansible/backup.yml
+
+.PHONY: backup-init
+backup-init:
+	sudo $(BACKUP_CTL) init
+
+.PHONY: backup-run
+backup-run:
+	sudo systemctl start osnova-backup.service
+
+.PHONY: backup-status
+backup-status:
+	sudo $(BACKUP_CTL) status
+
+.PHONY: backup-snapshots
+backup-snapshots:
+	sudo $(BACKUP_CTL) snapshots
+
+.PHONY: backup-retention-dry-run
+backup-retention-dry-run:
+	sudo $(BACKUP_CTL) retention-dry-run
+
+.PHONY: backup-check
+backup-check:
+	sudo $(BACKUP_CTL) check
+
+.PHONY: backup-check-data
+backup-check-data:
+	sudo $(BACKUP_CTL) check-data
+
+.PHONY: backup-prune
+backup-prune:
+	sudo $(BACKUP_CTL) prune
+
+.PHONY: backup-restore-smoke
+backup-restore-smoke:
+	sudo $(BACKUP_CTL) restore-smoke

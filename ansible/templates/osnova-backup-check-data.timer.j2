@@ -1,0 +1,12 @@
+[Unit]
+Description=Run OSNOVA Restic full data check monthly
+
+[Timer]
+OnCalendar=Sun *-*-01..07 06:30:00
+Persistent=true
+RandomizedDelaySec=30m
+AccuracySec=1m
+Unit=osnova-backup-maintenance@check-data.service
+
+[Install]
+WantedBy=timers.target

@@ -44,6 +44,7 @@ base_packages:
   - python3-pip
   - restic
   - rsync
+  - sqlite3
   - ufw
   - unattended-upgrades
   - xorgxrdp
@@ -130,13 +131,48 @@ project_roots:
   - /run/media/nsadmin/godny_soft/soft/codex_node_agent
 
 backup_script_path: /usr/local/sbin/osnova-backup.sh
-backup_root: /mnt/ufiles/backups
+backup_ctl_path: /usr/local/sbin/osnova-backupctl
+backup_environment_path: /etc/osnova-backup/restic.env
+backup_password_path: /etc/osnova-backup/restic-password
+backup_repository: /mnt/ufiles/restic/zuer
+backup_staging_root: /mnt/ufiles/.backup-staging
+backup_state_dir: /var/lib/osnova-backup
+backup_cache_dir: /var/cache/osnova-backup
+backup_lock_path: /run/lock/osnova-backup.lock
+backup_expected_uuid: "{{ ufiles_uuid }}"
+backup_min_target_free_percent: 20
+backup_min_root_free_percent: 15
+backup_retention_daily: 7
+backup_max_snapshot_age_hours: 26
+backup_nextcloud_maintenance_max_seconds: 900
+backup_timer_enabled: true
+backup_recovery_key_confirmed: true
+backup_filesystem_sources:
+  - /etc
+  - "/home/{{ server_admin_user }}"
+  - "{{ godny_soft_mount }}"
+  - "{{ nextcloud_root }}"
+  - "{{ traefik_root }}"
+  - /etc/rancher/k3s
+backup_required_source_mounts:
+  - "{{ godny_soft_mount }}"
 backup_excludes:
-  - ".git/"
-  - "node_modules/"
-  - ".next/"
-  - "venv/"
-  - ".venv/"
-  - "__pycache__/"
-  - ".cache/"
-  - "ollama_models/"
+  - "{{ backup_password_path }}"
+  - "**/node_modules/**"
+  - "**/.next/**"
+  - "**/venv/**"
+  - "**/.venv/**"
+  - "**/__pycache__/**"
+  - "**/.cache/**"
+  - "**/ollama_models/**"
+  - "**/.npm/_cacache/**"
+  - "**/.local/share/Trash/**"
+backup_nextcloud_app_container: nextcloud-app-1
+backup_nextcloud_db_container: nextcloud-db-1
+backup_postgres_containers:
+  - local-pgvector
+backup_openwebui_volumes:
+  - local_llm_open_webui_data
+  - local_llm_open_webui_ai_data
+backup_cold_volumes:
+  - local_llm_hermes_data

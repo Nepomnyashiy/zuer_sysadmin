@@ -1,0 +1,12 @@
+[Unit]
+Description=Run OSNOVA Restic retention and prune weekly
+
+[Timer]
+OnCalendar=Sun *-*-* 05:15:00
+Persistent=true
+RandomizedDelaySec=20m
+AccuracySec=1m
+Unit=osnova-backup-maintenance@prune.service
+
+[Install]
+WantedBy=timers.target

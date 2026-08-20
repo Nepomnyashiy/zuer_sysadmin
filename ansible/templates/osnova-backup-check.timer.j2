@@ -1,0 +1,12 @@
+[Unit]
+Description=Run OSNOVA Restic metadata check weekly
+
+[Timer]
+OnCalendar=Sat *-*-* 05:15:00
+Persistent=true
+RandomizedDelaySec=20m
+AccuracySec=1m
+Unit=osnova-backup-maintenance@check.service
+
+[Install]
+WantedBy=timers.target

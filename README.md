@@ -505,20 +505,32 @@ git -C /run/media/nsadmin/godny_soft/soft/kolos_web clean -fd
 
 ## 14. Резервное копирование
 
-Системный backup управляется:
+Действующая система использует зашифрованный Restic repository
+`/mnt/ufiles/restic/zuer`. Она создаёт ежедневные дедуплицированные snapshots,
+хранит 7 daily-точек, еженедельно выполняет metadata check и prune, ежемесячно
+читает весь repository. Recovery password сохранён вне ZUER, golden snapshot и
+restore drill успешно выполнены 2026-08-20, все четыре timers включены.
+
+Основные компоненты:
 
 ```text
 osnova-backup.timer
 osnova-backup.service
 /usr/local/sbin/osnova-backup.sh
+/usr/local/sbin/osnova-backupctl
 ```
 
-Проверка:
+Основные проверки и документация:
 
 ```bash
-systemctl list-timers osnova-backup.timer
-systemctl status osnova-backup.timer
-sudo journalctl -u osnova-backup.service -n 100 --no-pager
+make backup-static-check
+make backup-status
+systemctl list-timers 'osnova-backup*' --all
+```
+
+```text
+docs/runbooks/restic-backup-system.md
+docs/decisions/ADR-0005-restic-local-backup.md
 ```
 
 ## 15. Журналы и аудит

@@ -1,0 +1,66 @@
+---
+- name: Deploy OSNOVA backup system only
+  hosts: main
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Check target OS family
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.os_family == "Debian"
+          - ansible_facts.distribution == "Ubuntu"
+        fail_msg: "This backup playbook supports Ubuntu/Debian hosts only."
+
+    - name: Read backup target mount identity
+      ansible.builtin.command:
+        argv:
+          - findmnt
+          - -rn
+          - -M
+          - "{{ ufiles_mount }}"
+          - -o
+          - FSTYPE,UUID,OPTIONS
+      register: backup_mount_identity
+      changed_when: false
+      failed_when: false
+      # findmnt is read-only and must also run during Ansible --check.
+      check_mode: false
+
+    - name: Validate backup target mount
+      ansible.builtin.assert:
+        that:
+          - backup_mount_identity.rc == 0
+          - >-
+            (backup_mount_identity.stdout |
+            regex_search('^' ~ (ufiles_fstype | regex_escape) ~ '\\s')) is not none
+          - backup_expected_uuid in backup_mount_identity.stdout
+          - >-
+            (backup_mount_identity.stdout |
+            regex_search('^\\S+\\s+\\S+\\s+(?:rw|rw,.*)$')) is not none
+        fail_msg: >-
+          {{ ufiles_mount }} must be mounted read-write as {{ ufiles_fstype }}
+          with UUID {{ backup_expected_uuid }}; got:
+          {{ backup_mount_identity.stdout | default('not mounted', true) }}
+
+    - name: Install backup runtime packages
+      ansible.builtin.apt:
+        name:
+          - jq
+          - openssl
+          - restic
+          - rsync
+          - sqlite3
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+      when: not ansible_check_mode
+
+  tasks:
+    - name: Configure backup system
+      ansible.builtin.import_tasks: tasks/backup.yml

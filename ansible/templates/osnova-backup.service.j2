@@ -2,8 +2,24 @@
 Description=OSNOVA server backup
 Wants=network-online.target
 After=network-online.target
+RequiresMountsFor={{ ufiles_mount }} {{ godny_soft_mount }}
 
 [Service]
 Type=oneshot
+EnvironmentFile={{ backup_environment_path }}
+ExecStartPre={{ backup_ctl_path }} preflight
 ExecStart={{ backup_script_path }}
-
+UMask=0077
+Nice=10
+IOSchedulingClass=idle
+IOSchedulingPriority=7
+TimeoutStartSec=4h
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+ReadWritePaths={{ backup_repository | dirname }} {{ backup_staging_root }} {{ backup_state_dir }} {{ backup_cache_dir }} /run/lock

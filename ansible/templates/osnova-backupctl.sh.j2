@@ -1,0 +1,208 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+ENV_FILE="{{ backup_environment_path }}"
+UFILES_MOUNT="{{ ufiles_mount }}"
+EXPECTED_UUID="{{ backup_expected_uuid }}"
+STATE_DIR="{{ backup_state_dir }}"
+CACHE_DIR="{{ backup_cache_dir }}"
+LOCK_PATH="{{ backup_lock_path }}"
+BACKUP_HOST="{{ expected_hostname }}"
+MIN_TARGET_FREE_PERCENT={{ backup_min_target_free_percent }}
+MIN_ROOT_FREE_PERCENT={{ backup_min_root_free_percent }}
+RETENTION_DAILY={{ backup_retention_daily }}
+MAX_SNAPSHOT_AGE_HOURS={{ backup_max_snapshot_age_hours }}
+
+usage() {
+  cat <<'EOF'
+Usage: osnova-backupctl COMMAND
+
+Commands:
+  preflight          Validate mounts, capacity, credentials, and repository
+  init               Initialize or verify the Restic repository
+  snapshots          List daily snapshots for this host
+  retention-dry-run  Show snapshots selected by the retention policy
+  prune              Apply retention and reclaim unused repository blocks
+  check              Check repository metadata
+  check-data         Read and verify all repository data
+  status             Validate backup freshness, checks, and free space
+  restore-smoke      Restore and compare a small known file
+EOF
+}
+
+log() {
+  printf '%s %s\n' "$(date --iso-8601=seconds)" "$*"
+}
+
+fail() {
+  log "ERROR: $*" >&2
+  exit 1
+}
+
+free_percent() {
+  local path="$1"
+  local used
+  used="$(df --output=pcent "$path" | awk 'NR == 2 { gsub(/%/, "", $1); print $1; exit }')"
+  [[ "$used" =~ ^[0-9]+$ ]] || fail "cannot determine free space for $path"
+  printf '%s\n' "$((100 - used))"
+}
+
+validate_mount_and_capacity() {
+  mountpoint -q "$UFILES_MOUNT" || fail "$UFILES_MOUNT is not a mount point"
+  [[ "$(findmnt -rn -M "$UFILES_MOUNT" -o FSTYPE)" == "ext4" ]] || fail "$UFILES_MOUNT is not ext4"
+  [[ "$(findmnt -rn -M "$UFILES_MOUNT" -o UUID)" == "$EXPECTED_UUID" ]] || fail "unexpected filesystem UUID at $UFILES_MOUNT"
+  local write_probe
+  write_probe="$(mktemp "$(dirname "$RESTIC_REPOSITORY")/.osnova-write-test.XXXXXX")" \
+    || fail "Restic repository parent is not writable"
+  rm -f -- "$write_probe" || fail "cannot remove Restic write probe: $write_probe"
+
+  local target_free root_free
+  target_free="$(free_percent "$UFILES_MOUNT")"
+  root_free="$(free_percent /)"
+  (( target_free >= MIN_TARGET_FREE_PERCENT )) || fail "$UFILES_MOUNT has ${target_free}% free; required ${MIN_TARGET_FREE_PERCENT}%"
+  (( root_free >= MIN_ROOT_FREE_PERCENT )) || fail "/ has ${root_free}% free; required ${MIN_ROOT_FREE_PERCENT}%"
+}
+
+load_environment() {
+  [[ $EUID -eq 0 ]] || fail "command must run as root"
+  [[ -r "$ENV_FILE" ]] || fail "missing backup environment: $ENV_FILE"
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+  : "${RESTIC_REPOSITORY:?RESTIC_REPOSITORY is required}"
+  : "${RESTIC_PASSWORD_FILE:?RESTIC_PASSWORD_FILE is required}"
+  export RESTIC_REPOSITORY RESTIC_PASSWORD_FILE
+  export RESTIC_CACHE_DIR="$CACHE_DIR"
+  [[ -s "$RESTIC_PASSWORD_FILE" ]] || fail "Restic password file is missing or empty"
+  [[ "$(stat -c %U "$RESTIC_PASSWORD_FILE")" == root ]] || fail "Restic password file must be owned by root"
+  password_mode="$(stat -c %a "$RESTIC_PASSWORD_FILE")"
+  [[ "$password_mode" == 600 || "$password_mode" == 400 ]] || fail "Restic password file mode must be 0600 or 0400"
+}
+
+require_repository() {
+  [[ -f "$RESTIC_REPOSITORY/config" ]] || fail "Restic repository is not initialized: $RESTIC_REPOSITORY"
+  restic snapshots --latest 1 >/dev/null || fail "Restic repository is unavailable or password is invalid"
+}
+
+acquire_lock() {
+  exec 9>"$LOCK_PATH"
+  flock -n 9 || fail "another backup or maintenance operation is active"
+}
+
+mark_check() {
+  local name="$1"
+  install -d -m 0700 "$STATE_DIR"
+  date +%s >"$STATE_DIR/$name-epoch"
+  date --iso-8601=seconds >"$STATE_DIR/$name"
+}
+
+check_age_file() {
+  local path="$1"
+  local max_hours="$2"
+  local description="$3"
+  [[ -s "$path" ]] || fail "$description timestamp is missing"
+  local timestamp age_seconds max_seconds
+  timestamp="$(<"$path")"
+  [[ "$timestamp" =~ ^[0-9]+$ ]] || fail "$description timestamp is invalid"
+  age_seconds="$(( $(date +%s) - timestamp ))"
+  max_seconds="$((max_hours * 3600))"
+  (( age_seconds >= 0 && age_seconds <= max_seconds )) || fail "$description is older than ${max_hours}h"
+}
+
+command="${1:-}"
+[[ $# -eq 1 ]] || {
+  usage >&2
+  exit 2
+}
+
+case "$command" in
+  preflight)
+    load_environment
+    validate_mount_and_capacity
+    require_repository
+    log "Backup preflight passed"
+    ;;
+  init)
+    load_environment
+    validate_mount_and_capacity
+    acquire_lock
+    install -d -m 0700 "$STATE_DIR" "$CACHE_DIR" "$(dirname "$RESTIC_REPOSITORY")"
+    if [[ -f "$RESTIC_REPOSITORY/config" ]]; then
+      require_repository
+      log "Restic repository already exists and is readable"
+    else
+      restic init
+      log "Restic repository initialized: $RESTIC_REPOSITORY"
+    fi
+    ;;
+  snapshots)
+    load_environment
+    validate_mount_and_capacity
+    require_repository
+    restic snapshots --host "$BACKUP_HOST" --tag daily
+    ;;
+  retention-dry-run)
+    load_environment
+    validate_mount_and_capacity
+    require_repository
+    restic forget --host "$BACKUP_HOST" --tag daily --group-by host,tags \
+      --keep-daily "$RETENTION_DAILY" --dry-run
+    ;;
+  prune)
+    load_environment
+    validate_mount_and_capacity
+    acquire_lock
+    require_repository
+    restic forget --host "$BACKUP_HOST" --tag daily --group-by host,tags \
+      --keep-daily "$RETENTION_DAILY"
+    restic prune --max-unused 10% --max-repack-size 10G
+    log "Restic retention and prune completed"
+    ;;
+  check)
+    load_environment
+    validate_mount_and_capacity
+    acquire_lock
+    require_repository
+    restic check
+    mark_check last-check
+    log "Restic metadata check completed"
+    ;;
+  check-data)
+    load_environment
+    validate_mount_and_capacity
+    acquire_lock
+    require_repository
+    restic check --read-data
+    mark_check last-full-check
+    log "Restic full data check completed"
+    ;;
+  status)
+    load_environment
+    validate_mount_and_capacity
+    require_repository
+    check_age_file "$STATE_DIR/last-success-epoch" "$MAX_SNAPSHOT_AGE_HOURS" "last successful backup"
+    check_age_file "$STATE_DIR/last-check-epoch" 192 "last metadata check"
+    check_age_file "$STATE_DIR/last-full-check-epoch" 840 "last full data check"
+    snapshot_id="$(restic snapshots --host "$BACKUP_HOST" --tag daily --latest 1 --json | jq -er '.[0].short_id')"
+    log "Backup status is healthy; latest snapshot: $snapshot_id"
+    ;;
+  restore-smoke)
+    load_environment
+    validate_mount_and_capacity
+    acquire_lock
+    require_repository
+    restore_dir="$(mktemp -d /tmp/osnova-restore-smoke.XXXXXX)"
+    trap 'rm -rf --one-file-system -- "$restore_dir"' EXIT
+    restic restore latest --host "$BACKUP_HOST" --tag daily \
+      --include /etc/hostname --target "$restore_dir"
+    [[ -s "$restore_dir/etc/hostname" ]] || fail "restored hostname is missing"
+    cmp -s /etc/hostname "$restore_dir/etc/hostname" || fail "restored hostname differs from current source"
+    log "Restore smoke test passed"
+    ;;
+  -h|--help|help)
+    usage
+    ;;
+  *)
+    usage >&2
+    exit 2
+    ;;
+esac

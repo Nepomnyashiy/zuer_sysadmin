@@ -1,42 +1,297 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
-BACKUP_ROOT="{{ backup_root }}"
-STAMP="$(date +%F_%H-%M-%S)"
-DEST="${BACKUP_ROOT}/${STAMP}"
-LATEST="${BACKUP_ROOT}/latest"
-LOG="/var/log/osnova-backup.log"
+ENV_FILE="{{ backup_environment_path }}"
+UFILES_MOUNT="{{ ufiles_mount }}"
+EXPECTED_UUID="{{ backup_expected_uuid }}"
+STAGING_ROOT="{{ backup_staging_root }}"
+STAGING="${STAGING_ROOT}/current"
+STATE_DIR="{{ backup_state_dir }}"
+CACHE_DIR="{{ backup_cache_dir }}"
+LOCK_PATH="{{ backup_lock_path }}"
+SUMMARY_FILE="${STATE_DIR}/restic-backup.$$.jsonl.tmp"
+BACKUP_HOST="{{ expected_hostname }}"
+MIN_TARGET_FREE_PERCENT={{ backup_min_target_free_percent }}
+MIN_ROOT_FREE_PERCENT={{ backup_min_root_free_percent }}
+RETENTION_DAILY={{ backup_retention_daily }}
+NEXTCLOUD_MAX_SECONDS={{ backup_nextcloud_maintenance_max_seconds }}
+NEXTCLOUD_APP="{{ backup_nextcloud_app_container }}"
+NEXTCLOUD_DB="{{ backup_nextcloud_db_container }}"
+K3S_DB="/var/lib/rancher/k3s/server/db/state.db"
+K3S_TOKEN="/var/lib/rancher/k3s/server/token"
 
-mkdir -p "$DEST"
+NEXTCLOUD_MAINTENANCE=false
+STAGING_OWNED=false
 
 log() {
-  printf '%s %s\n' "$(date --iso-8601=seconds)" "$*" | tee -a "$LOG"
+  printf '%s %s\n' "$(date --iso-8601=seconds)" "$*"
 }
 
-if ! mountpoint -q "{{ ufiles_mount }}"; then
-  log "ERROR: {{ ufiles_mount }} is not mounted"
+fail() {
+  log "ERROR: $*" >&2
   exit 1
-fi
+}
 
-EXCLUDES=()
+free_percent() {
+  local path="$1"
+  local used
+  used="$(df --output=pcent "$path" | awk 'NR == 2 { gsub(/%/, "", $1); print $1; exit }')"
+  [[ "$used" =~ ^[0-9]+$ ]] || fail "cannot determine free space for $path"
+  printf '%s\n' "$((100 - used))"
+}
+
+disable_nextcloud_maintenance() {
+  if [[ "$NEXTCLOUD_MAINTENANCE" == true ]]; then
+    if docker exec -u www-data "$NEXTCLOUD_APP" php occ maintenance:mode --off; then
+      NEXTCLOUD_MAINTENANCE=false
+      log "Nextcloud maintenance mode disabled"
+    else
+      log "ERROR: failed to disable Nextcloud maintenance mode" >&2
+      return 1
+    fi
+  fi
+}
+
+cleanup() {
+  local status=$?
+  trap - EXIT INT TERM
+
+  if [[ "$NEXTCLOUD_MAINTENANCE" == true ]]; then
+    disable_nextcloud_maintenance || status=1
+  fi
+
+  if [[ "$STAGING_OWNED" == true ]]; then
+    case "$STAGING" in
+      "$STAGING_ROOT"/*)
+        rm -rf --one-file-system -- "$STAGING"
+        ;;
+      *)
+        log "ERROR: refusing to clean unexpected staging path: $STAGING" >&2
+        status=1
+        ;;
+    esac
+  fi
+  rm -f -- "$SUMMARY_FILE"
+
+  exit "$status"
+}
+
+trap cleanup EXIT INT TERM
+
+[[ $EUID -eq 0 ]] || fail "backup must run as root"
+[[ -r "$ENV_FILE" ]] || fail "missing backup environment: $ENV_FILE"
+# shellcheck disable=SC1090
+source "$ENV_FILE"
+
+: "${RESTIC_REPOSITORY:?RESTIC_REPOSITORY is required}"
+: "${RESTIC_PASSWORD_FILE:?RESTIC_PASSWORD_FILE is required}"
+export RESTIC_REPOSITORY RESTIC_PASSWORD_FILE
+export RESTIC_CACHE_DIR="$CACHE_DIR"
+
+command -v restic >/dev/null || fail "restic is not installed"
+command -v sqlite3 >/dev/null || fail "sqlite3 is not installed"
+command -v docker >/dev/null || fail "docker is not installed"
+command -v jq >/dev/null || fail "jq is not installed"
+command -v rsync >/dev/null || fail "rsync is not installed"
+
+exec 9>"$LOCK_PATH"
+flock -n 9 || fail "another backup or maintenance operation is active"
+
+mountpoint -q "$UFILES_MOUNT" || fail "$UFILES_MOUNT is not a mount point"
+[[ "$(findmnt -rn -M "$UFILES_MOUNT" -o FSTYPE)" == "ext4" ]] || fail "$UFILES_MOUNT is not ext4"
+[[ "$(findmnt -rn -M "$UFILES_MOUNT" -o UUID)" == "$EXPECTED_UUID" ]] || fail "unexpected filesystem UUID at $UFILES_MOUNT"
+write_probe="$(mktemp "$(dirname "$RESTIC_REPOSITORY")/.osnova-write-test.XXXXXX")" \
+  || fail "Restic repository parent is not writable"
+rm -f -- "$write_probe" || fail "cannot remove Restic write probe: $write_probe"
+
+target_free="$(free_percent "$UFILES_MOUNT")"
+root_free="$(free_percent /)"
+(( target_free >= MIN_TARGET_FREE_PERCENT )) || fail "$UFILES_MOUNT has ${target_free}% free; required ${MIN_TARGET_FREE_PERCENT}%"
+(( root_free >= MIN_ROOT_FREE_PERCENT )) || fail "/ has ${root_free}% free; required ${MIN_ROOT_FREE_PERCENT}%"
+
+[[ -s "$RESTIC_PASSWORD_FILE" ]] || fail "Restic password file is missing or empty"
+[[ -f "$RESTIC_REPOSITORY/config" ]] || fail "Restic repository is not initialized: $RESTIC_REPOSITORY"
+restic snapshots --latest 1 >/dev/null || fail "Restic repository is unavailable or password is invalid"
+
+install -d -m 0700 "$STATE_DIR" "$CACHE_DIR" "$STAGING_ROOT"
+rm -rf --one-file-system -- "$STAGING"
+install -d -m 0700 "$STAGING" "$STAGING/metadata" "$STAGING/databases"
+STAGING_OWNED=true
+
+FILESYSTEM_SOURCES=(
+{% for item in backup_filesystem_sources %}
+  "{{ item }}"
+{% endfor %}
+)
+
+REQUIRED_SOURCE_MOUNTS=(
+{% for item in backup_required_source_mounts %}
+  "{{ item }}"
+{% endfor %}
+)
+
+EXCLUDES=(--exclude-caches)
 {% for item in backup_excludes %}
-EXCLUDES+=(--exclude='{{ item }}')
+EXCLUDES+=(--exclude "{{ item }}")
 {% endfor %}
 
-log "Backup started: $DEST"
+for source in "${FILESYSTEM_SOURCES[@]}"; do
+  [[ -e "$source" ]] || fail "required backup source is missing: $source"
+done
+for source_mount in "${REQUIRED_SOURCE_MOUNTS[@]}"; do
+  mountpoint -q "$source_mount" || fail "required backup source is not mounted: $source_mount"
+done
 
-rsync -a --delete "${EXCLUDES[@]}" /etc "$DEST/"
-rsync -a --delete "${EXCLUDES[@]}" /home/{{ server_admin_user }}/ "$DEST/home-{{ server_admin_user }}/"
-rsync -a --delete "${EXCLUDES[@]}" /run/media/{{ server_admin_user }}/godny_soft/ "$DEST/godny_soft/"
+log "Preparing application-aware backup data"
 
-if [ -d "{{ nextcloud_root }}" ]; then
-  rsync -a --delete "{{ nextcloud_root }}/" "$DEST/nextcloud-config/"
+{% if nextcloud_enabled %}
+docker inspect "$NEXTCLOUD_APP" >/dev/null 2>&1 || fail "Nextcloud app container is missing: $NEXTCLOUD_APP"
+docker inspect "$NEXTCLOUD_DB" >/dev/null 2>&1 || fail "Nextcloud database container is missing: $NEXTCLOUD_DB"
+
+nextcloud_started_at="$(date +%s)"
+docker exec -u www-data "$NEXTCLOUD_APP" php occ maintenance:mode --on
+NEXTCLOUD_MAINTENANCE=true
+
+install -d -m 0700 "$STAGING/nextcloud"
+docker exec "$NEXTCLOUD_DB" sh -euc \
+  'export MYSQL_PWD="$MYSQL_PASSWORD"; exec mariadb-dump --single-transaction --quick --lock-tables=false --user="$MYSQL_USER" "$MYSQL_DATABASE"' \
+  >"$STAGING/databases/nextcloud.sql"
+[[ -s "$STAGING/databases/nextcloud.sql" ]] || fail "Nextcloud MariaDB dump is empty"
+
+docker exec "$NEXTCLOUD_APP" \
+  tar --one-file-system --exclude=./data -C /var/www/html -cpf - . \
+  | gzip -1 >"$STAGING/nextcloud/application.tar.gz"
+[[ -s "$STAGING/nextcloud/application.tar.gz" ]] || fail "Nextcloud application archive is empty"
+
+disable_nextcloud_maintenance
+nextcloud_duration="$(( $(date +%s) - nextcloud_started_at ))"
+if (( nextcloud_duration > NEXTCLOUD_MAX_SECONDS )); then
+  log "WARNING: Nextcloud maintenance took ${nextcloud_duration}s; target is ${NEXTCLOUD_MAX_SECONDS}s"
+fi
+{% endif %}
+
+install -d -m 0700 "$STAGING/postgresql"
+POSTGRES_CONTAINERS=(
+{% for item in backup_postgres_containers %}
+  "{{ item }}"
+{% endfor %}
+)
+
+for container in "${POSTGRES_CONTAINERS[@]}"; do
+  docker inspect "$container" >/dev/null 2>&1 || fail "PostgreSQL container is missing: $container"
+  container_dir="$STAGING/postgresql/$container"
+  install -d -m 0700 "$container_dir"
+
+  docker exec "$container" sh -euc \
+    'exec pg_dumpall --globals-only --username="${POSTGRES_USER:-postgres}"' \
+    >"$container_dir/globals.sql"
+  [[ -s "$container_dir/globals.sql" ]] || fail "empty PostgreSQL globals dump: $container"
+
+  mapfile -t databases < <(
+    docker exec "$container" sh -euc \
+      'exec psql --username="${POSTGRES_USER:-postgres}" --dbname="${POSTGRES_DB:-postgres}" --tuples-only --no-align --command="SELECT datname FROM pg_database WHERE datallowconn AND NOT datistemplate ORDER BY datname"'
+  )
+  [[ -n "${databases[0]:-}" ]] || fail "no PostgreSQL databases found in $container"
+
+  for database in "${databases[@]}"; do
+    [[ "$database" =~ ^[A-Za-z0-9_.-]+$ ]] || fail "unsafe PostgreSQL database name in $container"
+    dump_file="$container_dir/$database.dump"
+    docker exec "$container" sh -euc \
+      'exec pg_dump --format=custom --username="${POSTGRES_USER:-postgres}" --dbname="$1"' sh "$database" \
+      >"$dump_file"
+    [[ -s "$dump_file" ]] || fail "empty PostgreSQL dump: $container/$database"
+    docker exec -i "$container" pg_restore --list <"$dump_file" >/dev/null
+  done
+done
+
+install -d -m 0700 "$STAGING/openwebui"
+OPENWEBUI_VOLUMES=(
+{% for item in backup_openwebui_volumes %}
+  "{{ item }}"
+{% endfor %}
+)
+
+for volume in "${OPENWEBUI_VOLUMES[@]}"; do
+  volume_mount="$(docker volume inspect "$volume" | jq -er '.[0].Mountpoint')" || fail "OpenWebUI volume is missing: $volume"
+  volume_target="$STAGING/openwebui/$volume"
+  install -d -m 0700 "$volume_target"
+
+  rsync -a --exclude='*.db' --exclude='*.db-shm' --exclude='*.db-wal' \
+    "$volume_mount/" "$volume_target/"
+
+  sqlite_count=0
+  while IFS= read -r -d '' sqlite_db; do
+    relative_db="${sqlite_db#"$volume_mount"/}"
+    [[ "$relative_db" != *"'"* ]] || fail "unsupported quote in SQLite path: $relative_db"
+    sqlite_target="$volume_target/$relative_db"
+    install -d -m 0700 "$(dirname "$sqlite_target")"
+    sqlite3 "$sqlite_db" ".timeout 30000" ".backup '$sqlite_target'"
+    sqlite3 "$sqlite_target" 'PRAGMA quick_check;' | grep -qx ok || fail "SQLite validation failed: $volume/$relative_db"
+    sqlite_count="$((sqlite_count + 1))"
+  done < <(find "$volume_mount" -type f -name '*.db' -print0)
+  (( sqlite_count > 0 )) || fail "no SQLite database found in OpenWebUI volume: $volume"
+done
+
+install -d -m 0700 "$STAGING/cold-volumes"
+COLD_VOLUMES=(
+{% for item in backup_cold_volumes %}
+  "{{ item }}"
+{% endfor %}
+)
+
+for volume in "${COLD_VOLUMES[@]}"; do
+  if ! docker volume inspect "$volume" >/dev/null 2>&1; then
+    log "Optional cold volume is absent, skipping: $volume"
+    continue
+  fi
+  if [[ -n "$(docker ps -q --filter "volume=$volume")" ]]; then
+    fail "cold volume is attached to a running container: $volume"
+  fi
+  volume_mount="$(docker volume inspect "$volume" | jq -er '.[0].Mountpoint')"
+  install -d -m 0700 "$STAGING/cold-volumes/$volume"
+  rsync -a "$volume_mount/" "$STAGING/cold-volumes/$volume/"
+done
+
+if systemctl is-active --quiet k3s; then
+  [[ -f "$K3S_DB" ]] || fail "k3s SQLite datastore is missing: $K3S_DB"
+  [[ -s "$K3S_TOKEN" ]] || fail "k3s server token is missing"
+  install -d -m 0700 "$STAGING/k3s"
+  sqlite3 "$K3S_DB" ".timeout 30000" ".backup '$STAGING/k3s/state.db'"
+  sqlite3 "$STAGING/k3s/state.db" 'PRAGMA quick_check;' | grep -qx ok || fail "k3s SQLite validation failed"
+  install -m 0600 "$K3S_TOKEN" "$STAGING/k3s/server-token"
 fi
 
-dpkg --get-selections > "$DEST/package.list"
-docker ps --format '{{ "{{" }} json . {{ "}}" }}' > "$DEST/docker-ps.jsonl" 2>/dev/null || true
-docker volume ls --format '{{ "{{" }} json . {{ "}}" }}' > "$DEST/docker-volumes.jsonl" 2>/dev/null || true
+dpkg --get-selections >"$STAGING/metadata/package-selections.txt"
+docker ps --format '{% raw %}{{ json . }}{% endraw %}' >"$STAGING/metadata/docker-ps.jsonl"
+docker volume ls --format '{% raw %}{{ json . }}{% endraw %}' >"$STAGING/metadata/docker-volumes.jsonl"
+kubectl get nodes -o yaml >"$STAGING/metadata/kubernetes-nodes.yaml"
+kubectl get pods,svc,ingress,pvc,pv -A -o yaml >"$STAGING/metadata/kubernetes-objects.yaml"
 
-ln -sfn "$DEST" "$LATEST"
-log "Backup completed: $DEST"
+RESTIC_SOURCES=("${FILESYSTEM_SOURCES[@]}" "$STAGING")
+rm -f -- "$SUMMARY_FILE"
 
+log "Creating Restic snapshot in $RESTIC_REPOSITORY"
+restic backup \
+  --host "$BACKUP_HOST" \
+  --tag daily \
+  --one-file-system \
+  "${EXCLUDES[@]}" \
+  --json \
+  "${RESTIC_SOURCES[@]}" \
+  >"$SUMMARY_FILE"
+
+snapshot_id="$(jq -er 'select(.message_type == "summary") | .snapshot_id' "$SUMMARY_FILE" | tail -n 1)"
+[[ -n "$snapshot_id" ]] || fail "Restic did not return a snapshot ID"
+rm -f -- "$SUMMARY_FILE"
+
+restic forget \
+  --host "$BACKUP_HOST" \
+  --tag daily \
+  --group-by host,tags \
+  --keep-daily "$RETENTION_DAILY"
+
+printf '%s\n' "$snapshot_id" >"$STATE_DIR/last-snapshot-id"
+date +%s >"$STATE_DIR/last-success-epoch"
+date --iso-8601=seconds >"$STATE_DIR/last-success"
+
+log "Backup completed successfully: snapshot $snapshot_id"
