@@ -168,6 +168,23 @@ findmnt -T /srv/storage/mega-files -no TARGET,SOURCE,FSTYPE,OPTIONS
 findmnt -T /run/media/nsadmin/godny_soft -no TARGET,SOURCE,FSTYPE,OPTIONS
 ```
 
+## Docker containerd image store
+
+Docker Engine 29 stores image layers in the system containerd root separately
+from Docker named volumes. Use the focused, guarded workflow instead of moving
+`/var/lib/docker` manually:
+
+```bash
+make docker-prune-plan
+make docker-prune-apply
+sudo make containerd-storage-check
+sudo make containerd-storage-migrate
+```
+
+The migration leaves `/var/lib/docker/volumes` on the system SSD and keeps the
+old `/var/lib/containerd` for a 24-hour rollback window. See
+`docs/runbooks/containerd-storage-migration.md` before apply or finalize.
+
 ## GNOME Desktop Settings
 
 The main bootstrap imports `desktop-settings.yml`. It enables GNOME primary

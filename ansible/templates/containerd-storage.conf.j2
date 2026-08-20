@@ -1,0 +1,5 @@
+[Unit]
+RequiresMountsFor={{ ufiles_mount }}
+
+[Service]
+ExecStartPre=/usr/bin/mountpoint -q {{ ufiles_mount }}

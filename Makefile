@@ -47,6 +47,18 @@ help:
 	@printf '%s\n' '  make backup-check-data'
 	@printf '%s\n' '  make backup-prune'
 	@printf '%s\n' '  make backup-restore-smoke'
+	@printf '%s\n' ''
+	@printf '%s\n' 'Storage:'
+	@printf '%s\n' '  make storage-audit'
+	@printf '%s\n' '  make storage-audit-deep'
+	@printf '%s\n' '  make docker-prune-plan'
+	@printf '%s\n' '  make docker-prune-apply'
+	@printf '%s\n' '  make system-cache-plan'
+	@printf '%s\n' '  sudo make system-cache-apply'
+	@printf '%s\n' '  make containerd-storage-check'
+	@printf '%s\n' '  sudo make containerd-storage-migrate'
+	@printf '%s\n' '  sudo make containerd-storage-verify'
+	@printf '%s\n' '  sudo make containerd-storage-rollback'
 
 .PHONY: k8s-preflight
 k8s-preflight:
@@ -169,3 +181,48 @@ backup-prune:
 .PHONY: backup-restore-smoke
 backup-restore-smoke:
 	sudo $(BACKUP_CTL) restore-smoke
+
+.PHONY: storage-audit
+storage-audit:
+	./scripts/storage/storage-audit.sh --quick
+
+.PHONY: storage-audit-deep
+storage-audit-deep:
+	./scripts/storage/storage-audit.sh --deep
+
+.PHONY: docker-prune-plan
+docker-prune-plan:
+	./scripts/storage/docker-prune.sh --plan
+
+.PHONY: docker-prune-apply
+docker-prune-apply:
+	./scripts/storage/docker-prune.sh --apply
+
+.PHONY: system-cache-plan
+system-cache-plan:
+	./scripts/storage/system-cache-cleanup.sh --plan
+
+.PHONY: system-cache-apply
+system-cache-apply:
+	./scripts/storage/system-cache-cleanup.sh --apply
+
+.PHONY: containerd-storage-check
+containerd-storage-check:
+	sudo ansible-playbook -i ansible/inventory.ini ansible/container-runtime-storage.yml --check --diff -e container_runtime_apply=true
+	sudo ./scripts/storage/migrate-containerd-root.sh --preflight
+
+.PHONY: containerd-storage-migrate
+containerd-storage-migrate:
+	./scripts/storage/migrate-containerd-root.sh --migrate
+
+.PHONY: containerd-storage-verify
+containerd-storage-verify:
+	./scripts/storage/migrate-containerd-root.sh --verify
+
+.PHONY: containerd-storage-rollback
+containerd-storage-rollback:
+	./scripts/storage/migrate-containerd-root.sh --rollback
+
+.PHONY: containerd-storage-finalize
+containerd-storage-finalize:
+	./scripts/storage/migrate-containerd-root.sh --finalize

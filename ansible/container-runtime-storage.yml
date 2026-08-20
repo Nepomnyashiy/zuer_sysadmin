@@ -1,0 +1,139 @@
+---
+- name: Configure OSNOVA Docker containerd storage
+  hosts: main
+  become: true
+  gather_facts: false
+
+  pre_tasks:
+    - name: Require explicit storage apply acknowledgement
+      ansible.builtin.assert:
+        that:
+          - container_runtime_apply | default(false) | bool
+        fail_msg: >-
+          Run through scripts/storage/migrate-containerd-root.sh. Direct apply
+          requires -e container_runtime_apply=true after backup and cold copy.
+
+    - name: Read ufiles mount identity
+      ansible.builtin.command:
+        argv:
+          - findmnt
+          - -rn
+          - -M
+          - "{{ ufiles_mount }}"
+          - -o
+          - UUID,FSTYPE,OPTIONS
+      register: container_storage_mount
+      changed_when: false
+      check_mode: false
+
+    - name: Require expected writable ext4 ufiles mount
+      ansible.builtin.assert:
+        that:
+          - container_storage_mount.stdout.split()[0] == ufiles_uuid
+          - container_storage_mount.stdout.split()[1] == ufiles_fstype
+          - "'rw' in container_storage_mount.stdout.split()[2].split(',')"
+          - "'ro' not in container_storage_mount.stdout.split()[2].split(',')"
+
+    - name: Read migration marker
+      ansible.builtin.stat:
+        path: "{{ containerd_root | dirname }}/.osnova-containerd-target"
+      register: container_storage_marker
+
+    - name: Require completed cold copy before runtime reconfiguration
+      ansible.builtin.assert:
+        that:
+          - container_storage_marker.stat.exists
+        fail_msg: "Containerd target marker is absent; do not redirect a live runtime to an empty directory."
+      when: not ansible_check_mode
+
+  tasks:
+    - name: Create containerd persistent root
+      ansible.builtin.file:
+        path: "{{ containerd_root }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0711"
+
+    - name: Create containerd systemd override directory
+      ansible.builtin.file:
+        path: /etc/systemd/system/containerd.service.d
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Create containerd configuration directory
+      ansible.builtin.file:
+        path: /etc/containerd
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Create Docker systemd override directory
+      ansible.builtin.file:
+        path: /etc/systemd/system/docker.service.d
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Configure containerd persistent and runtime roots
+      ansible.builtin.template:
+        src: containerd-config.toml.j2
+        dest: /etc/containerd/config.toml
+        owner: root
+        group: root
+        mode: "0644"
+        backup: true
+
+    - name: Require ufiles before system containerd starts
+      ansible.builtin.template:
+        src: containerd-storage.conf.j2
+        dest: /etc/systemd/system/containerd.service.d/20-osnova-storage.conf
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Configure bounded Docker json-file logging
+      ansible.builtin.template:
+        src: docker-daemon.json.j2
+        dest: /etc/docker/daemon.json
+        owner: root
+        group: root
+        mode: "0644"
+        backup: true
+
+    - name: Require data mounts before Docker starts
+      ansible.builtin.template:
+        src: docker-storage-mounts.conf.j2
+        dest: /etc/systemd/system/docker.service.d/10-storage-mounts.conf
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Validate containerd configuration
+      ansible.builtin.command:
+        argv:
+          - containerd
+          - --config
+          - /etc/containerd/config.toml
+          - config
+          - dump
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Validate Docker daemon configuration
+      ansible.builtin.command:
+        argv:
+          - dockerd
+          - --validate
+          - --config-file=/etc/docker/daemon.json
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Reload systemd unit definitions
+      ansible.builtin.systemd:
+        daemon_reload: true
+      when: not ansible_check_mode

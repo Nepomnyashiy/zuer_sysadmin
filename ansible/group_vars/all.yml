@@ -44,6 +44,7 @@ base_packages:
   - python3-pip
   - restic
   - rsync
+  - smartmontools
   - sqlite3
   - ufw
   - unattended-upgrades
@@ -80,6 +81,17 @@ ufiles_fstype: ext4
 storage_ntfs_fstype: ntfs-3g
 ufiles_mount_options: "defaults,nofail"
 storage_ntfs_mount_options: "uid=33,gid={{ storage_group_gid }},umask=0007,big_writes,nofail"
+
+# Docker Engine 29 stores image contents and snapshots in the system
+# containerd root. Keep Docker named volumes on the system SSD and move only
+# this reproducible image store to the capacity disk.
+containerd_root: "{{ ufiles_mount }}/container-runtime/containerd"
+containerd_state: /run/containerd
+containerd_source_root: /var/lib/containerd
+containerd_storage_device: /dev/sdf
+containerd_min_free_gib: 100
+docker_log_max_size: 10m
+docker_log_max_file: "3"
 
 nextcloud_root: /opt/nextcloud
 nextcloud_data_dir: /mnt/ufiles/nextcloud-data
