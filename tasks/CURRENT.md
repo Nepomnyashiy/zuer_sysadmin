@@ -73,21 +73,28 @@ docs/state/latest-audit.md
 
 Проверить:
 
-- [ ] OS/kernel/uptime.
-- [ ] CPU/load.
-- [ ] RAM/swap.
-- [ ] GPU/VRAM.
-- [ ] root и data storage.
-- [ ] mountpoints и ro/rw.
-- [ ] network/routes/listening ports.
-- [ ] Docker/containerd.
-- [ ] k3s/node state.
-- [ ] namespaces/pods/deployments/statefulsets.
-- [ ] ingress-nginx.
-- [ ] registry 30500.
-- [ ] PV/PVC/StorageClass.
-- [ ] systemd failures.
-- [ ] доступный capacity для Kolos + Anaconda.
+- [x] OS/kernel/uptime.
+- [x] CPU/load.
+- [x] RAM/swap.
+- [x] GPU/VRAM.
+- [x] root и data storage.
+- [x] mountpoints и ro/rw.
+- [x] network/routes/listening ports.
+- [x] Docker/containerd.
+- [x] k3s/node state.
+- [x] namespaces/pods/deployments/statefulsets.
+- [x] ingress-nginx.
+- [x] registry 30500.
+- [x] PV/PVC/StorageClass.
+- [x] systemd failures.
+- [x] доступный capacity для Kolos + Anaconda.
+
+Результат 2026-08-21: `OK`. Полный snapshot сохранён в
+`docs/state/latest-audit.md`, ход-отчёт — в
+`docs/reports/2026-08-21-zuer-startup-audit.md`. Блокирующих проблем нет;
+root filesystem использует 67%, Docker показывает 23.93 GB reclaimable images,
+cleanup не выполнялся. Последний backup завершён успешно после двух
+восстановленных ошибок 2026-08-20.
 
 ## Phase 3 — Platform validation
 
