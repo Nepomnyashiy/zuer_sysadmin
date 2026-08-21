@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: postgres:16-alpine
+          image: postgres:16.15-alpine3.24@sha256:075f7ba66bc9b3ce7d6b8b635208ff61cd7cf1a67d71ec530eec5d7ae0cbe571
           ports:
             - name: postgres
               containerPort: 5432
@@ -45,6 +45,14 @@ spec:
                 - -c
                 - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
             initialDelaySeconds: 30
+          startupProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+            periodSeconds: 5
+            failureThreshold: 24
           resources:
             requests:
               cpu: 100m

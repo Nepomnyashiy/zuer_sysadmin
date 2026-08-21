@@ -159,16 +159,16 @@ apps/anaconda/k8s
 
 Проверить:
 
-- [ ] Docker build contexts.
-- [ ] ConfigMap.
-- [ ] Secret mapping без вывода secret values.
-- [ ] frontend.
-- [ ] FastAPI API.
-- [ ] PostgreSQL.
-- [ ] probes.
-- [ ] resource requests/limits.
-- [ ] PVC/stateful data.
-- [ ] Ingress hosts.
+- [x] Docker build contexts.
+- [x] ConfigMap.
+- [x] Secret mapping без вывода secret values.
+- [x] frontend.
+- [x] FastAPI API.
+- [x] PostgreSQL.
+- [x] probes.
+- [x] resource requests/limits.
+- [x] PVC/stateful data.
+- [x] Ingress hosts.
 
 Использовать существующий workflow:
 
@@ -176,14 +176,36 @@ apps/anaconda/k8s
 ./scripts/k8s/create-secret-from-env.sh \
   anaconda \
   anaconda-secret \
-  /run/media/nsadmin/godny_soft/soft/kip-service/anaconda_mvp/.env
+  /run/media/nsadmin/godny_soft/soft/kip-service/anaconda_mvp/.env \
+  POSTGRES_PASSWORD \
+  TELEGRAM_BOT_TOKEN \
+  EMAIL_IMAP_USER \
+  EMAIL_IMAP_PASSWORD
 
-make app-build APP=anaconda
-make app-push APP=anaconda
+make app-build APP=anaconda IMAGE_TAG=git-aeef02d
+make app-push APP=anaconda IMAGE_TAG=git-aeef02d
 make app-dry-run APP=anaconda
 make app-diff APP=anaconda
 make app-apply APP=anaconda
 ```
+
+Pre-deployment результат 2026-08-21:
+
+- source hardening: ветка `agent/anaconda-k8s-readiness`, commits `fdc178d` и
+  `aeef02d`;
+- frontend переведён с Vite dev server на static Nginx `8080`;
+- API имеет `/live` и DB-aware `/ready`, не логирует token prefix;
+- current-tree credential literals удалены, npm audit: 0 vulnerabilities;
+- существующие Anaconda Docker containers/volumes не найдены, первый rollout
+  создаёт новую пустую PostgreSQL;
+- immutable API/web images `git-aeef02d` опубликованы в local registry и
+  зафиксированы в manifests по OCI digest;
+- server-side dry-run успешен, diff показывает создание ожидаемых resources;
+- backup/restore runbook и smoke script добавлены.
+
+Rollout временно не выполняется до ротации Telegram/IMAP credentials, ранее
+присутствовавших в source Git history. Удаление literals из HEAD не отменяет
+компрометацию старых значений.
 
 После rollout:
 
@@ -409,7 +431,12 @@ https://api.anaconda.godny.tech
 
 ## Blockers
 
-На момент создания задачи блокеры не зафиксированы. Агент должен дополнять этот раздел по фактическому аудиту.
+- **Anaconda production rollout:** требуется ротация Telegram bot token и IMAP
+  app password, ранее присутствовавших в Git history. До ротации не создавать
+  live Secret и не включать public route.
+- Source hardening Anaconda находится в опубликованной ветке
+  `agent/anaconda-k8s-readiness` (`aeef02d`); для долговременной поддержки её
+  нужно review/merge в основной release flow приложения.
 
 ## Decisions
 

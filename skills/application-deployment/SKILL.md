@@ -66,6 +66,27 @@ make app-push APP=<app>
 make app-apply APP=<app>
 ```
 
+Для одного rollout используй один immutable tag во всех командах. `app-push`
+должен публиковать уже проверенный local image, а не пересобирать его:
+
+```bash
+make app-build APP=<app> IMAGE_TAG=git-<source-sha>
+make app-push APP=<app> IMAGE_TAG=git-<source-sha>
+```
+
+После push проверь tag и OCI digest через registry API. В production manifests
+предпочитай `tag@sha256:digest`.
+
+Secret создавай с allowlist необходимых keys, если source `.env` содержит и
+секретные, и обычные настройки:
+
+```bash
+./scripts/k8s/create-secret-from-env.sh \
+  <namespace> <secret-name> /path/to/.env KEY_ONE KEY_TWO
+```
+
+Не импортируй весь `.env` в Secret без необходимости.
+
 При первом rollout или существенном изменении:
 
 ```bash

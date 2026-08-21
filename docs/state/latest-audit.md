@@ -96,6 +96,12 @@ Workloads:
 - Service: NodePort `30080/30443` с endpoint `10.42.0.115:80/443`.
 - Local registry: `1/1 Ready`, NodePort `30500`, API `/v2/` отвечает `200`.
 - Ingress resources приложений пока отсутствуют.
+- В registry опубликованы подготовленные Anaconda images, но workload не
+  применён:
+  - `anaconda/api:git-aeef02d` ->
+    `sha256:0c77ea569879ff15003c7f8f71d025ca75eb98128992217fd41d07d0c752cd6b`;
+  - `anaconda/web:git-aeef02d` ->
+    `sha256:3f02d8b77ff1b7b548ac1a87bb5687485e5c9c49d64d97b4116baff9515c3d54`.
 
 ## Docker Traefik -> Kubernetes
 

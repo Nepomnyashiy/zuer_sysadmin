@@ -30,27 +30,53 @@ spec:
           envFrom:
             - configMapRef:
                 name: anaconda-config
-            - secretRef:
-                name: anaconda-secret
           env:
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: anaconda-secret
                   key: POSTGRES_PASSWORD
-            - name: DATABASE_URL
-              value: postgresql://anaconda_user:$(POSTGRES_PASSWORD)@anaconda-postgres:5432/anaconda_db
+            - name: TELEGRAM_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: anaconda-secret
+                  key: TELEGRAM_BOT_TOKEN
+            - name: EMAIL_IMAP_USER
+              valueFrom:
+                secretKeyRef:
+                  name: anaconda-secret
+                  key: EMAIL_IMAP_USER
+            - name: EMAIL_IMAP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: anaconda-secret
+                  key: EMAIL_IMAP_PASSWORD
           readinessProbe:
             httpGet:
-              path: /health
+              path: /ready
               port: http
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /health
+              path: /live
               port: http
             initialDelaySeconds: 40
             periodSeconds: 20
+          startupProbe:
+            httpGet:
+              path: /ready
+              port: http
+            periodSeconds: 5
+            failureThreshold: 24
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            runAsUser: 10001
+            seccompProfile:
+              type: RuntimeDefault
           resources:
             requests:
               cpu: 200m

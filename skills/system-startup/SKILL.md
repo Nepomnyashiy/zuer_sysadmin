@@ -75,6 +75,16 @@ make k8s-status
 - критические systemd failures.
 - занятые edge ports 80/443/30080/30443/30500.
 
+Для NodePort не считать отсутствие userspace listener в `ss` ошибкой:
+kube-proxy может обслуживать порт через iptables/nftables. Проверяй
+функционально:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:30080/
+curl -k -sS -o /dev/null -w '%{http_code}\n' https://127.0.0.1:30443/
+curl -sS -i http://127.0.0.1:30500/v2/
+```
+
 ## Результат
 
 Обнови `docs/state/latest-audit.md` без секретов.

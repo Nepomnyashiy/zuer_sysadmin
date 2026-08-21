@@ -105,7 +105,7 @@ app-build:
 .PHONY: app-push
 app-push:
 	@test -n "$(APP)" || (echo 'APP is required, example: make app-push APP=barber' >&2; exit 2)
-	./scripts/k8s/build-app-images.sh "$(APP)" "$(REGISTRY)" "$(IMAGE_TAG)"
+	./scripts/k8s/build-app-images.sh "$(APP)" "$(REGISTRY)" "$(IMAGE_TAG)" --push-only
 
 .PHONY: app-dry-run
 app-dry-run:

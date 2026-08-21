@@ -8,4 +8,10 @@ resources:
   - api.yaml
   - web.yaml
   - ingress.yaml
-
+images:
+  - name: 127.0.0.1:30500/anaconda/api
+    newTag: git-aeef02d
+    digest: sha256:0c77ea569879ff15003c7f8f71d025ca75eb98128992217fd41d07d0c752cd6b
+  - name: 127.0.0.1:30500/anaconda/web
+    newTag: git-aeef02d
+    digest: sha256:3f02d8b77ff1b7b548ac1a87bb5687485e5c9c49d64d97b4116baff9515c3d54
