@@ -104,12 +104,19 @@ cleanup не выполнялся. Последний backup завершён у
 Docker Traefik -> 127.0.0.1:30080 -> ingress-nginx -> app Ingress
 ```
 
-- [ ] ingress-nginx healthy.
-- [ ] NodePort 30080 работает.
-- [ ] NodePort 30443 работает.
-- [ ] registry `127.0.0.1:30500` доступен.
-- [ ] `osnova-local-retain` существует и пригоден для stateful workloads.
-- [ ] существующие public services не конфликтуют.
+- [x] ingress-nginx healthy.
+- [x] NodePort 30080 работает.
+- [x] NodePort 30443 работает.
+- [x] registry `127.0.0.1:30500` доступен.
+- [x] `osnova-local-retain` существует и пригоден для stateful workloads.
+- [x] существующие public services не конфликтуют.
+
+Результат 2026-08-21: Traefik container достигает ingress-nginx через
+`http://192.168.0.101:30080`; ответ `404` ожидаем до появления app Ingress.
+`127.0.0.1:30080` нельзя использовать как upstream из Docker-контейнера без
+host networking, потому что loopback относится к самому контейнеру. В live
+Traefik нет rules для целевых Kolos/Anaconda hosts, существующие routes не
+конфликтуют.
 
 ## Phase 4 — DNS
 
@@ -128,10 +135,13 @@ api.anaconda.godny.tech
 85.172.104.173
 ```
 
-- [ ] agro DNS.
-- [ ] api.agro DNS.
-- [ ] anaconda DNS.
-- [ ] api.anaconda DNS.
+- [x] agro DNS.
+- [x] api.agro DNS.
+- [x] anaconda DNS.
+- [x] api.anaconda DNS.
+
+Результат 2026-08-21: system resolver и `1.1.1.1` возвращают
+`85.172.104.173` для всех четырёх A-записей. AAAA и CNAME не опубликованы.
 
 ## Phase 5 — Anaconda deployment
 

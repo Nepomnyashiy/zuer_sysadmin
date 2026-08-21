@@ -97,6 +97,33 @@ Workloads:
 - Local registry: `1/1 Ready`, NodePort `30500`, API `/v2/` отвечает `200`.
 - Ingress resources приложений пока отсутствуют.
 
+## Docker Traefik -> Kubernetes
+
+- Traefik работает в Docker network `proxy`, container IP `172.19.0.8`,
+  gateway `172.19.0.1`.
+- Из контейнера Traefik `http://192.168.0.101:30080/` доступен и возвращает
+  ожидаемый ingress-nginx `404`, пока app Ingress отсутствуют.
+- Upstream `127.0.0.1:30080` из Traefik использовать нельзя: loopback внутри
+  контейнера не является loopback хоста.
+- Live host rules: `cloud.godny.tech`, `traefik.godny.tech`, `ai.godny.tech`,
+  `llm.godny.tech`, `prombiz.godny.tech`, `prombiz.tech` и `www.prombiz.tech`.
+- Live rules для `agro.godny.tech`, `api.agro.godny.tech`,
+  `anaconda.godny.tech`, `api.anaconda.godny.tech` отсутствуют; конфликтов с
+  существующими routes не обнаружено.
+- `cloud.godny.tech` отвечает ожидаемым `302` на `/login`, Traefik dashboard —
+  ожидаемым `401` без credentials.
+
+## DNS
+
+System resolver и `1.1.1.1` возвращают одинаковые данные:
+
+| Host | A | AAAA | CNAME |
+| --- | --- | --- | --- |
+| `agro.godny.tech` | `85.172.104.173` | нет | нет |
+| `api.agro.godny.tech` | `85.172.104.173` | нет | нет |
+| `anaconda.godny.tech` | `85.172.104.173` | нет | нет |
+| `api.anaconda.godny.tech` | `85.172.104.173` | нет | нет |
+
 ## PV / PVC / StorageClass
 
 - `osnova-local-retain`: provisioner `rancher.io/local-path`,
