@@ -17,6 +17,7 @@
 - `monitoring-observability/SKILL.md` — Prometheus, Grafana, Loki, метрики, dashboards, alerts.
 - `incident-diagnostics/SKILL.md` — диагностика инцидентов и деградаций.
 - `documentation-sync/SKILL.md` — синхронизация tasks/docs/skills/Git после работы.
+- `secrets-management/SKILL.md` — хранение секретов, Ansible Vault, allowlisted Kubernetes Secrets, secret scanning и безопасная очистка Git history.
 
 ## Разделение информации
 
@@ -32,3 +33,10 @@ Git     = история изменений
 Если изменилось фактическое устройство системы — обновляется `docs/`.
 
 Если изменился статус работы — обновляется `tasks/CURRENT.md`.
+
+Для задач, связанных с credentials, secret history или Kubernetes Secret, агент обязан дополнительно прочитать:
+
+```text
+skills/secrets-management/SKILL.md
+docs/runbooks/secrets-management.md
+```
