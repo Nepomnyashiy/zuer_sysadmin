@@ -57,6 +57,7 @@ PostgreSQL наружу не публикуется.
 - [x] Добавить monitoring/observability skill.
 - [x] Добавить incident diagnostics skill.
 - [x] Добавить documentation sync skill.
+- [x] Добавить secrets management skill.
 - [x] Добавить компактный `docs/agent/START_PROMPT.md`.
 - [x] Создать текущую task-модель.
 - [ ] При необходимости синхронизировать ссылки на новую структуру с `AGENTS.md`/`README.md` без дублирования больших инструкций.
@@ -203,9 +204,44 @@ Pre-deployment результат 2026-08-21:
 - server-side dry-run успешен, diff показывает создание ожидаемых resources;
 - backup/restore runbook и smoke script добавлены.
 
-Rollout временно не выполняется до ротации Telegram/IMAP credentials, ранее
-присутствовавших в source Git history. Удаление literals из HEAD не отменяет
-компрометацию старых значений.
+### Phase 5A — Secrets hygiene gate
+
+До фактического Anaconda apply выполнить отдельную focused task:
+
+```text
+tasks/SECRETS_HYGIENE.md
+```
+
+Обязательные документы:
+
+```text
+skills/secrets-management/SKILL.md
+docs/runbooks/secrets-management.md
+```
+
+Текущий стандарт:
+
+```text
+Git -> обычная конфигурация + encrypted Ansible Vault
+ZUER -> local .env только как gitignored bootstrap/runtime source
+Ansible Vault -> allowlisted Kubernetes Secret -> Pod
+```
+
+Текущее решение пользователя для тестового этапа:
+
+- [ ] не ротировать существующие Telegram/IMAP credentials;
+- [ ] удалить plaintext credentials из relevant Git history;
+- [ ] убедиться, что `.env` не tracked и имеет безопасные права;
+- [ ] создать/проверить encrypted Ansible Vault source of truth;
+- [ ] хранить vault password вне Git;
+- [ ] использовать allowlisted Kubernetes Secret workflow;
+- [ ] повторно выполнить secret scan current tree + rewritten history;
+- [ ] обновить старые source commit SHA в sysadmin docs после history rewrite;
+- [ ] завершить `tasks/SECRETS_HYGIENE.md` статусом `READY`.
+
+Residual risk принят пользователем для тестового этапа: history rewrite не гарантирует удаления уже скопированного секрета из сторонних clones/forks/caches. Перед реальным production использованием такие credentials должны быть перевыпущены.
+
+После статуса `SECRETS HYGIENE: READY` основной deployment-agent синхронизирует `agent/sysadmin`, читает обновлённый task state и продолжает Anaconda rollout без повторения уже завершённого platform-аудита.
 
 После rollout:
 
@@ -431,12 +467,8 @@ https://api.anaconda.godny.tech
 
 ## Blockers
 
-- **Anaconda production rollout:** требуется ротация Telegram bot token и IMAP
-  app password, ранее присутствовавших в Git history. До ротации не создавать
-  live Secret и не включать public route.
-- Source hardening Anaconda находится в опубликованной ветке
-  `agent/anaconda-k8s-readiness` (`aeef02d`); для долговременной поддержки её
-  нужно review/merge в основной release flow приложения.
+- **Anaconda production rollout:** временно ожидает завершения `tasks/SECRETS_HYGIENE.md`. Пользователь решил на тестовом этапе не ротировать Telegram/IMAP credentials, а очистить current tree/history, внедрить Ansible Vault и allowlisted Secret workflow. После `SECRETS HYGIENE: READY` этот blocker снимается.
+- Source hardening Anaconda находится в опубликованной ветке `agent/anaconda-k8s-readiness`; history rewrite может изменить SHA, поэтому после secrets cleanup ссылки на старые `fdc178d`/`aeef02d` необходимо актуализировать.
 
 ## Decisions
 
@@ -446,3 +478,6 @@ https://api.anaconda.godny.tech
 - ingress-nginx остаётся внутренним Kubernetes ingress.
 - существующий repository framework и Makefile используются вместо нового deployment framework.
 - проверки адаптируются к риску: быстро для LOW/MEDIUM, подтверждение только для реального HIGH risk.
+- production-like secret source of truth: encrypted Ansible Vault; local `.env` допустим только как gitignored/bootstrap source с `chmod 600`.
+- Kubernetes Secret создаётся только из allowlisted keys; весь `.env` целиком не импортируется.
+- на текущем тестовом этапе credentials сохраняются без ротации по явному решению пользователя; перед реальным production использованием их необходимо перевыпустить.
