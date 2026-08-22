@@ -46,6 +46,10 @@
 - Старый backup root находился внутри root-owned `/mnt/ufiles/backups`.
 - Host `pg_restore` отсутствует; проверка dump выполняется pinned PostgreSQL
   tooling внутри Pod через stdin.
+- Первый edge apply preflight остановился до изменений: Ansible `uri` прошёл
+  Nextcloud redirect и сравнил конечный `200` с ожидаемым исходным `302`.
+  Проверка исправлена на `follow_redirects: none` и `no_log`, чтобы response
+  cookies не попадали в failure output.
 
 ## Результат
 

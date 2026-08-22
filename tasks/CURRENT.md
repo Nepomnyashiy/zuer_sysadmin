@@ -261,7 +261,9 @@ Edge automation подготовлена в `ansible/k8s-anaconda-edge.yml` и �
 template `traefik-k8s-anaconda.yml.j2`; syntax/render checks успешны. Она не
 перезаписывает общий `routes.yml`, сохраняет Ansible backup и повторно проверяет
 существующие cloud/dashboard routes. Apply требует интерактивного `sudo`,
-которого у агента нет.
+которого у агента нет. Первый apply остановился до изменений на Nextcloud
+redirect check; workflow исправлен на проверку исходного `302` без follow и
+скрывает response cookies через `no_log`.
 
 ## Phase 6 — Kolos deployment
 
