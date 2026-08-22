@@ -7,7 +7,7 @@
 - Database/user: `anaconda_db` / `anaconda_user`.
 - PVC: `data-anaconda-postgres-0`.
 - StorageClass: `osnova-local-retain` (`Retain`).
-- Backup root: `/mnt/ufiles/backups/k8s-postgres`.
+- Backup root: `/mnt/ufiles/k8s-backups/postgres`.
 
 На аудите 2026-08-21 existing Anaconda Docker containers/volumes не найдены,
 поэтому первый Kubernetes rollout создаёт новую пустую PostgreSQL. Если до
@@ -29,13 +29,15 @@ make backup-postgres \
 Скрипт создаёт custom-format dump (`pg_dump -Fc`) с mode `0600` в:
 
 ```text
-/mnt/ufiles/backups/k8s-postgres/anaconda/anaconda-postgres/
+/mnt/ufiles/k8s-backups/postgres/anaconda/anaconda-postgres/
 ```
 
-Проверка dump без восстановления:
+Проверка dump без восстановления через PostgreSQL Pod (host `pg_restore` на
+ZUER не установлен):
 
 ```bash
-pg_restore --list /path/to/anaconda_db-YYYYMMDD-HHMMSS.dump >/dev/null
+kubectl -n anaconda exec -i anaconda-postgres-0 -- \
+  pg_restore --list < /path/to/anaconda_db-YYYYMMDD-HHMMSS.dump >/dev/null
 ```
 
 Backup считается готовым только после успешного `pg_restore --list` и
@@ -49,7 +51,7 @@ Restore с `--clean` изменяет/удаляет объекты БД и от
 
 План:
 
-1. Проверить `pg_restore --list`.
+1. Проверить dump через containerized `pg_restore --list`, как показано выше.
 2. Создать свежий backup текущей БД.
 3. Остановить writers (`anaconda-api` replicas `0`).
 4. Передать dump в Pod и выполнить `pg_restore --clean --if-exists`.

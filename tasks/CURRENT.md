@@ -184,13 +184,13 @@ make app-apply APP=anaconda
 Pre-deployment результат 2026-08-21:
 
 - source hardening после history rewrite: `88fbe3d` и `cf7a08a`; текущий tip
-  ветки `agent/anaconda-k8s-readiness`: `41f5a8f`;
+  ветки `agent/anaconda-k8s-readiness`: `477accd`;
 - frontend переведён с Vite dev server на static Nginx `8080`;
 - API имеет `/live` и DB-aware `/ready`, не логирует token prefix;
 - current-tree credential literals удалены, npm audit: 0 vulnerabilities;
 - существующие Anaconda Docker containers/volumes не найдены, первый rollout
   создаёт новую пустую PostgreSQL;
-- immutable API/web images `git-aeef02d` опубликованы в local registry и
+- immutable API/web images `git-477accd` опубликованы в local registry и
   зафиксированы в manifests по OCI digest;
 - server-side dry-run успешен, diff показывает создание ожидаемых resources;
 - backup/restore runbook и smoke script добавлены.
@@ -238,13 +238,24 @@ deployment-agent синхронизирует `agent/sysadmin`, повторяе
 
 После rollout:
 
-- [ ] required Pods Ready.
-- [ ] PostgreSQL healthy.
-- [ ] PVC Bound.
-- [ ] internal Service works.
-- [ ] Kubernetes Ingress works.
+- [x] required Pods Ready.
+- [x] PostgreSQL healthy.
+- [x] PVC Bound.
+- [x] internal Service works.
+- [x] Kubernetes Ingress works.
 - [ ] `https://anaconda.godny.tech` works.
 - [ ] `https://api.anaconda.godny.tech` works.
+
+Kubernetes rollout завершён 2026-08-22. Secret доставлен из encrypted Vault с
+allowlist из четырёх keys. API, web и PostgreSQL имеют `1/1 Ready`, restart
+count `0`; PVC `data-anaconda-postgres-0` — `Bound`, 20 GiB,
+`osnova-local-retain`, PV policy `Retain`. Репозиторный smoke через ingress
+NodePort прошёл. Cold-start race API/PostgreSQL устранена initContainer с
+`pg_isready`; API logs и `/api/email/info` больше не раскрывают IMAP user.
+Создан baseline dump в `/mnt/ufiles/k8s-backups/postgres/anaconda/` с mode
+`600`; containerized `pg_restore --list` успешен. Restore drill не выполнялся.
+Следующий отдельный этап — declarative Traefik cutover двух Anaconda hosts и
+public HTTPS smoke.
 
 ## Phase 6 — Kolos deployment
 
@@ -460,9 +471,9 @@ https://api.anaconda.godny.tech
 
 ## Blockers
 
-- Secrets hygiene blocker снят. Перед Anaconda apply остаются штатные
-  `make anaconda-secret-dry-run`, `make app-dry-run APP=anaconda` и
-  `make app-diff APP=anaconda`.
+- Kubernetes blocker отсутствует. До public HTTPS остаётся отдельный Traefik
+  cutover для `anaconda.godny.tech` и `api.anaconda.godny.tech`; существующие
+  edge routes нельзя затрагивать.
 
 ## Decisions
 

@@ -20,6 +20,34 @@ spec:
         app.kubernetes.io/name: anaconda-api
     spec:
       terminationGracePeriodSeconds: 30
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:16.15-alpine3.24@sha256:075f7ba66bc9b3ce7d6b8b635208ff61cd7cf1a67d71ec530eec5d7ae0cbe571
+          command:
+            - sh
+            - -c
+            - >-
+              until pg_isready -h "$POSTGRES_HOST" -p "$POSTGRES_PORT"
+              -U "$POSTGRES_USER" -d "$POSTGRES_DB"; do sleep 2; done
+          envFrom:
+            - configMapRef:
+                name: anaconda-config
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            runAsUser: 70
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
       containers:
         - name: api
           image: 127.0.0.1:30500/anaconda/api:local

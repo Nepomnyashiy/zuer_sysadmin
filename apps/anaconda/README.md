@@ -13,8 +13,8 @@
 ```bash
 make k8s-preflight
 make anaconda-secret-dry-run
-make app-build APP=anaconda IMAGE_TAG=git-aeef02d
-make app-push APP=anaconda IMAGE_TAG=git-aeef02d
+make app-build APP=anaconda IMAGE_TAG=git-477accd
+make app-push APP=anaconda IMAGE_TAG=git-477accd
 make app-dry-run APP=anaconda
 make app-diff APP=anaconda
 make anaconda-secret-apply
@@ -40,9 +40,9 @@ Git history очищена. Для текущего тестового rollout �
 production использованием их необходимо перевыпустить.
 
 Frontend image собирается как статический Vite build и работает под
-unprivileged Nginx на `8080`. После history rewrite source branch tip:
-`41f5a8f` (`agent/anaconda-k8s-readiness`). Существующие immutable image tags
-`git-aeef02d` сохранены как исторические registry identifiers и по-прежнему
-проверяются по OCI digest.
+unprivileged Nginx на `8080`. Текущий source branch tip — `477accd`
+(`agent/anaconda-k8s-readiness`). API Deployment использует initContainer с
+`pg_isready`, поэтому cold start ждёт готовности PostgreSQL без CrashLoop.
+Production-like manifests фиксируют tag `git-477accd` и OCI digests.
 
 Backup/restore procedure: [`BACKUP_RESTORE.md`](BACKUP_RESTORE.md).

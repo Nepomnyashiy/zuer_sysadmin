@@ -2,13 +2,13 @@
 
 **Status:** OK
 
-**Updated:** 2026-08-21T10:19:00+03:00
+**Updated:** 2026-08-22T15:13:24+03:00
 
-**Scope:** полный live startup audit по `skills/system-startup/SKILL.md`
+**Scope:** полный audit 2026-08-21 + live Anaconda rollout delta 2026-08-22
 
 ## Итог
 
-ZUER готов к продолжению platform validation и подготовке Kolos/Anaconda.
+ZUER готов к продолжению Anaconda edge cutover и подготовке Kolos.
 Блокирующих ошибок хоста, Docker или Kubernetes не обнаружено. Single-node
 кластер не является отказоустойчивым; stateful deployment всё равно требует
 проверенного backup/restore и отдельного migration plan.
@@ -34,7 +34,7 @@ ZUER готов к продолжению platform validation и подгото�
 
 | Mount | Filesystem | Usage | Available | State |
 | --- | --- | ---: | ---: | --- |
-| `/` | ext4 | 67% | 35 GiB | `rw` |
+| `/` | ext4 | 69% | 33 GiB | `rw` |
 | `/mnt/ufiles` | ext4 | 31% | 605 GiB | `rw` |
 | `/run/media/nsadmin/godny_soft` | ext4 | 6% | 196 GiB | `rw` |
 | `/srv/storage/x-files` | NTFS/fuseblk | 59% | 775 GiB | mounted |
@@ -84,9 +84,8 @@ Workloads:
 - 5/5 infrastructure Pods `Running` и `Ready`;
 - ingress-nginx, local-registry, CoreDNS, local-path-provisioner и
   metrics-server доступны;
-- application namespaces `anaconda`, `barber`, `kolos`, `ai-platform`,
-  `monitoring`, `databases` существуют, но application workloads пока не
-  развёрнуты;
+- Anaconda API, web и PostgreSQL: `3/3` Pods `Running`/`Ready`, restart count
+  `0`; остальные application namespaces пока без workloads;
 - у инфраструктурных Pods по 21 restart, последний был 2 дня назад вместе с
   текущим boot; текущих restart loops нет.
 
@@ -95,20 +94,21 @@ Workloads:
 - ingress-nginx controller: `1/1 Ready`.
 - Service: NodePort `30080/30443` с endpoint `10.42.0.115:80/443`.
 - Local registry: `1/1 Ready`, NodePort `30500`, API `/v2/` отвечает `200`.
-- Ingress resources приложений пока отсутствуют.
-- В registry опубликованы подготовленные Anaconda images, но workload не
-  применён:
-  - `anaconda/api:git-aeef02d` ->
-    `sha256:0c77ea569879ff15003c7f8f71d025ca75eb98128992217fd41d07d0c752cd6b`;
-  - `anaconda/web:git-aeef02d` ->
+- Anaconda Ingress публикует `anaconda.godny.tech` и
+  `api.anaconda.godny.tech` внутри ingress-nginx; NodePort smoke возвращает
+  `200`, Docker Traefik cutover ещё не выполнен.
+- В registry опубликованы и развёрнуты immutable Anaconda images:
+  - `anaconda/api:git-477accd` ->
+    `sha256:0e4e47fdf4f28b8337d3e94094ed171e737f9e37be593d9bd124b65a394f2733`;
+  - `anaconda/web:git-477accd` ->
     `sha256:3f02d8b77ff1b7b548ac1a87bb5687485e5c9c49d64d97b4116baff9515c3d54`.
 
 ## Docker Traefik -> Kubernetes
 
 - Traefik работает в Docker network `proxy`, container IP `172.19.0.8`,
   gateway `172.19.0.1`.
-- Из контейнера Traefik `http://192.168.0.101:30080/` доступен и возвращает
-  ожидаемый ingress-nginx `404`, пока app Ingress отсутствуют.
+- Из контейнера Traefik `http://192.168.0.101:30080/` доступен; Anaconda host
+  rules внутри ingress-nginx проверены через NodePort.
 - Upstream `127.0.0.1:30080` из Traefik использовать нельзя: loopback внутри
   контейнера не является loopback хоста.
 - Live host rules: `cloud.godny.tech`, `traefik.godny.tech`, `ai.godny.tech`,
@@ -137,7 +137,8 @@ System resolver и `1.1.1.1` возвращают одинаковые данн�
 - Registry PVC `ingress/local-registry-data`: `Bound`, 20 GiB, RWO.
 - Registry PV: `Bound`, `Retain`, физический path:
   `/mnt/ufiles/k8s/local-path/pvc-f605ff12-4003-47ba-b9b3-628406e93fef_ingress_local-registry-data`.
-- Других PV/PVC пока нет.
+- Anaconda PVC `anaconda/data-anaconda-postgres-0`: `Bound`, 20 GiB, RWO;
+  PV `pvc-bea2ec69-fbcc-4bc2-8fe6-9a5e6bfa1abd`, policy `Retain`.
 
 ## Capacity
 
@@ -146,9 +147,10 @@ System resolver и `1.1.1.1` возвращают одинаковые данн�
 - Kubernetes limits: 1500m CPU (9%), 1450 MiB memory (4%).
 - Текущее node usage: около 556m CPU (3%) и 8494 MiB memory (27%).
 
-Предварительно capacity достаточно для запуска Kolos и Anaconda с безопасными
-стартовыми requests/limits. Окончательное подтверждение требуется после аудита
-их Compose/Dockerfile, production data и фактических resource profiles.
+После Anaconda rollout фактическое потребление Pods: API около 59 MiB/4m CPU,
+PostgreSQL 28 MiB/8m CPU, web 12 MiB/1m CPU. Node остаётся `Ready`, без
+MemoryPressure/DiskPressure. Capacity для Kolos нужно подтвердить после аудита
+его production data и resource profile.
 
 ## Backup и предупреждения
 
@@ -158,7 +160,9 @@ System resolver и `1.1.1.1` возвращают одинаковые данн�
   03:39 MSK: `Result=success`, `ExecMainStatus=0`.
 - Четыре backup timers активны; следующий daily запуск запланирован на
   2026-08-22.
-- Root filesystem уже использует 67%; следить за ростом build artifacts и
+- Anaconda baseline dump создан в `/mnt/ufiles/k8s-backups/postgres/anaconda/`,
+  mode `600`; проверка `pg_restore --list` внутри PostgreSQL Pod успешна.
+- Root filesystem уже использует 69%; следить за ростом build artifacts и
   container images.
 - Docker показывает 23.93 GB reclaimable images. Автоматический prune не
   выполнялся, поскольку cleanup требует отдельной оценки используемых tags и
@@ -179,10 +183,12 @@ System resolver и `1.1.1.1` возвращают одинаковые данн�
 
 ## Следующий безопасный шаг
 
-Phase 3: проверить декларативную и фактическую цепочку Docker Traefik ->
-NodePort -> ingress-nginx, текущие routes и отсутствие конфликтов с
-существующими public services. Затем выполнить DNS validation.
+Добавить в Docker Traefik отдельные host rules для `anaconda.godny.tech` и
+`api.anaconda.godny.tech` с upstream `http://192.168.0.101:30080`, проверить
+config/diff и выполнить public HTTPS smoke. Существующие routes не изменять.
 
 ## Rollback
 
-Аудит был read-only; runtime не изменялся. Для этого этапа rollback не нужен.
+Anaconda workloads можно откатить предыдущими image digests. PVC/PV не удалять:
+данные PostgreSQL сохраняются политикой `Retain`. Edge runtime в delta-аудите
+не изменялся.
