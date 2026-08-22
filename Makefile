@@ -39,6 +39,10 @@ help:
 	@printf '%s\n' '  make anaconda-secret-dry-run'
 	@printf '%s\n' '  make anaconda-secret-apply'
 	@printf '%s\n' ''
+	@printf '%s\n' 'Edge:'
+	@printf '%s\n' '  make anaconda-edge-check'
+	@printf '%s\n' '  make anaconda-edge-apply'
+	@printf '%s\n' ''
 	@printf '%s\n' 'Backup:'
 	@printf '%s\n' '  make backup-preflight'
 	@printf '%s\n' '  make backup-static-check'
@@ -138,6 +142,18 @@ anaconda-secret-apply:
 	$(ANSIBLE_PLAYBOOK) ansible/k8s-anaconda-secret.yml \
 		--vault-password-file "$(VAULT_PASSWORD_FILE)" \
 		-e anaconda_secret_apply=true
+
+.PHONY: anaconda-edge-check
+anaconda-edge-check:
+	sudo $(ANSIBLE_PLAYBOOK) ansible/k8s-anaconda-edge.yml \
+		--vault-password-file "$(VAULT_PASSWORD_FILE)" \
+		--check --diff
+
+.PHONY: anaconda-edge-apply
+anaconda-edge-apply:
+	sudo $(ANSIBLE_PLAYBOOK) ansible/k8s-anaconda-edge.yml \
+		--vault-password-file "$(VAULT_PASSWORD_FILE)" \
+		--diff
 
 .PHONY: backup-postgres
 backup-postgres:

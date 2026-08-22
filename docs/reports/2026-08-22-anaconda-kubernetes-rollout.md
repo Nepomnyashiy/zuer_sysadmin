@@ -20,6 +20,8 @@
 - Backup root отделён от root-owned system backups:
   `/mnt/ufiles/k8s-backups/postgres`.
 - Создан baseline PostgreSQL dump mode `600`.
+- Подготовлен standalone Ansible edge workflow с preflight, Ansible backup и
+  post-apply public/existing-route smoke; runtime edge не изменён.
 
 ## Проверки
 
@@ -52,10 +54,10 @@
 
 ## Следующий шаг
 
-Подготовить и проверить отдельные Traefik routes для
+Интерактивно выполнить `make anaconda-edge-check`, проверить diff, затем
+`make anaconda-edge-apply`. Workflow публикует отдельные Traefik routes для
 `anaconda.godny.tech`/`api.anaconda.godny.tech` на
-`http://192.168.0.101:30080`, затем выполнить public HTTPS smoke и проверить,
-что существующие routes не изменились.
+`http://192.168.0.101:30080` и проверяет public HTTPS и существующие routes.
 
 ## Rollback
 

@@ -257,6 +257,12 @@ NodePort прошёл. Cold-start race API/PostgreSQL устранена initCon
 Следующий отдельный этап — declarative Traefik cutover двух Anaconda hosts и
 public HTTPS smoke.
 
+Edge automation подготовлена в `ansible/k8s-anaconda-edge.yml` и отдельном
+template `traefik-k8s-anaconda.yml.j2`; syntax/render checks успешны. Она не
+перезаписывает общий `routes.yml`, сохраняет Ansible backup и повторно проверяет
+существующие cloud/dashboard routes. Apply требует интерактивного `sudo`,
+которого у агента нет.
+
 ## Phase 6 — Kolos deployment
 
 Source:
@@ -473,7 +479,8 @@ https://api.anaconda.godny.tech
 
 - Kubernetes blocker отсутствует. До public HTTPS остаётся отдельный Traefik
   cutover для `anaconda.godny.tech` и `api.anaconda.godny.tech`; существующие
-  edge routes нельзя затрагивать.
+  edge routes нельзя затрагивать. Технический blocker: интерактивный `sudo` для
+  `make anaconda-edge-check` и затем `make anaconda-edge-apply`.
 
 ## Decisions
 

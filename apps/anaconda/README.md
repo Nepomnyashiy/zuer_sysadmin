@@ -30,6 +30,19 @@ make anaconda-secret-apply
 ./apps/anaconda/scripts/smoke.sh
 ```
 
+После успешного Kubernetes smoke отдельным этапом публикуется edge route:
+
+```bash
+make anaconda-edge-check
+make anaconda-edge-apply
+```
+
+Targets запрашивают `sudo`, потому что standalone file-provider route хранится
+в `/srv/proxy/traefik/dynamic/k8s-anaconda.yml`. Check выполняет upstream и
+existing-route preflight; apply сохраняет backup старого файла и проверяет оба
+public HTTPS endpoint плюс существующие Nextcloud/dashboard routes. Перезапуск
+Traefik не требуется: file provider работает с `watch=true`.
+
 ## Важно
 
 PostgreSQL не публикуется наружу. Telegram webhook должен указывать на внешний
