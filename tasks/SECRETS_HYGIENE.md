@@ -1,9 +1,10 @@
 # SECRETS_HYGIENE — Очистка и стандартизация секретов
 
-**Status:** ACTIVE  
+**Status:** READY
 **Server:** ZUER  
 **Priority:** HIGH  
 **Created:** 2026-08-21  
+**Completed:** 2026-08-22
 **Type:** Focused maintenance task
 
 ## Цель
@@ -65,13 +66,13 @@ agent/anaconda-k8s-readiness
 
 ## Phase 1 — Inventory без раскрытия значений
 
-- [ ] Проверить git status/branches/remotes обоих репозиториев.
-- [ ] Определить tracked `.env`/secret-like files.
-- [ ] Определить key names, которые считаются чувствительными.
-- [ ] Проверить current tree на plaintext secrets.
-- [ ] Проверить Git history/branches/tags через secret scanner.
-- [ ] Не выводить найденные secret values в отчёты.
-- [ ] Зафиксировать только repository/path/ref/key-name/status.
+- [x] Проверить git status/branches/remotes обоих репозиториев.
+- [x] Определить tracked `.env`/secret-like files.
+- [x] Определить key names, которые считаются чувствительными.
+- [x] Проверить current tree на plaintext secrets.
+- [x] Проверить Git history/branches/tags через secret scanner.
+- [x] Не выводить найденные secret values в отчёты.
+- [x] Зафиксировать только repository/path/ref/key-name/status.
 
 Предпочтительные инструменты:
 
@@ -88,12 +89,12 @@ History rewrite считается HIGH RISK Git operation.
 
 Перед изменением истории:
 
-- [ ] убедиться, что текущие изменения сохранены;
-- [ ] не потерять чужой dirty worktree;
-- [ ] сохранить список branches/tags/remote refs;
-- [ ] создать rollback snapshot (`git bundle` или mirror backup) вне рабочего дерева;
-- [ ] проверить, что backup читается;
-- [ ] зафиксировать rollback procedure без secret values.
+- [x] убедиться, что текущие изменения сохранены;
+- [x] не потерять чужой dirty worktree;
+- [x] сохранить список branches/tags/remote refs;
+- [x] создать rollback snapshot (`git bundle` или mirror backup) вне рабочего дерева;
+- [x] проверить, что backup читается;
+- [x] зафиксировать rollback procedure без secret values.
 
 Не удалять backup до полной remote verification.
 
@@ -101,13 +102,13 @@ History rewrite считается HIGH RISK Git operation.
 
 Для Anaconda и других затронутых репозиториев:
 
-- [ ] реальные `.env` должны быть untracked;
-- [ ] `.gitignore` должен исключать `.env`/секретные варианты;
-- [ ] `.env.example` должен содержать только key names/placeholders;
-- [ ] права локальных secret files — `600`;
-- [ ] manifests не должны содержать plaintext credentials;
-- [ ] docs/tasks/reports не должны содержать plaintext credentials;
-- [ ] shell scripts не должны содержать literals.
+- [x] реальные `.env` должны быть untracked;
+- [x] `.gitignore` должен исключать `.env`/секретные варианты;
+- [x] `.env.example` должен содержать только key names/placeholders;
+- [x] права локальных secret files — `600`;
+- [x] manifests не должны содержать plaintext credentials;
+- [x] docs/tasks/reports не должны содержать plaintext credentials;
+- [x] shell scripts не должны содержать literals.
 
 ## Phase 4 — Ansible Vault standard
 
@@ -149,11 +150,11 @@ EMAIL_IMAP_USER
 EMAIL_IMAP_PASSWORD
 ```
 
-- [ ] проверить существующий helper `create-secret-from-env.sh`;
-- [ ] не импортировать весь `.env`;
-- [ ] подготовить целевой Ansible workflow для создания `anaconda-secret` из Vault;
-- [ ] Secret values не должны попадать в generated Git files;
-- [ ] проверять только metadata/key names/status.
+- [x] проверить существующий helper `create-secret-from-env.sh`;
+- [x] не импортировать весь `.env`;
+- [x] подготовить целевой Ansible workflow для создания `anaconda-secret` из Vault;
+- [x] Secret values не должны попадать в generated Git files;
+- [x] проверять только metadata/key names/status.
 
 ## Phase 6 — Git history cleanup
 
@@ -161,24 +162,24 @@ EMAIL_IMAP_PASSWORD
 
 Требования:
 
-- [ ] определить все affected branches/tags;
-- [ ] не вставлять secret values в командную строку, если это оставляет их в shell history;
-- [ ] использовать локальный replacement/pattern file с `chmod 600`, если он нужен;
-- [ ] выполнить rewrite;
-- [ ] повторно прогнать secret scan по rewritten refs;
-- [ ] убедиться, что необходимые source commits/изменения сохранены логически;
-- [ ] проверить branch topology после rewrite.
+- [x] определить все affected branches/tags;
+- [x] не вставлять secret values в командную строку, если это оставляет их в shell history;
+- [x] использовать локальный replacement/pattern file с `chmod 600`, если он нужен;
+- [x] выполнить rewrite;
+- [x] повторно прогнать secret scan по rewritten refs;
+- [x] убедиться, что необходимые source commits/изменения сохранены логически;
+- [x] проверить branch topology после rewrite.
 
 ## Phase 7 — Remote synchronization
 
 После успешного локального scan:
 
-- [ ] подготовить список refs, которые требуют force-push;
-- [ ] force-push только очищенные refs;
-- [ ] не затрагивать нерелевантные repositories/branches;
-- [ ] повторно проверить remote history;
-- [ ] проверить GitHub branches/tags;
-- [ ] учесть, что старые commit SHA после rewrite станут недействительными.
+- [x] подготовить список refs, которые требуют force-push;
+- [x] force-push только очищенные refs;
+- [x] не затрагивать нерелевантные repositories/branches;
+- [x] повторно проверить remote history;
+- [x] проверить GitHub branches/tags;
+- [x] учесть, что старые commit SHA после rewrite станут недействительными.
 
 Если `zuer_sysadmin` содержит ссылки на старые source commit SHA — обновить их на новые SHA.
 
@@ -186,11 +187,11 @@ EMAIL_IMAP_PASSWORD
 
 После завершения:
 
-- [ ] обновить этот task;
-- [ ] обновить `tasks/CURRENT.md`;
-- [ ] обновить `docs/reports/2026-08-21-anaconda-production-readiness.md`, если старые SHA изменились;
-- [ ] обновить runbook/skill только если найдено reusable knowledge;
-- [ ] не записывать secret values.
+- [x] обновить этот task;
+- [x] обновить `tasks/CURRENT.md`;
+- [x] обновить `docs/reports/2026-08-21-anaconda-production-readiness.md`, если старые SHA изменились;
+- [x] обновить runbook/skill только если найдено reusable knowledge;
+- [x] не записывать secret values.
 
 ## Phase 9 — Handoff основной задаче
 
@@ -214,21 +215,43 @@ git fetch/pull
 
 Не выполнять сам Anaconda production rollout в рамках этой focused task, если это не требуется для проверки Secret workflow.
 
+## Completion result
+
+```text
+SECRETS HYGIENE: READY
+```
+
+- Anaconda `main` rewritten tip: `97ee84d`.
+- Anaconda `agent/anaconda-k8s-readiness` tip: `41f5a8f`.
+- Relevant remote branches прошли fresh-clone gitleaks и exact-value scan.
+- `.env` сохранён локально, untracked, mode `600`; `.env.example` безопасен.
+- Encrypted `ansible/group_vars/vault.yml` создан и содержит четыре Anaconda
+  keys в логической секции `vault_anaconda`.
+- Vault password остаётся вне Git: `/home/nsadmin/.config/osnova/ansible-vault-pass`.
+- `make anaconda-secret-dry-run` успешен; apply не выполнялся.
+- Rollback bundle проверен и сохранён в
+  `/home/nsadmin/.local/share/osnova/backups/anaconda-mvp-pre-secrets-rewrite-20260821.bundle`.
+- Existing test credentials намеренно не ротированы. Перед production они
+  должны быть перевыпущены.
+- Во время cleanup один diagnostic command захватил temporary replacement
+  artifact и вывел его в session tool log. Artifact удалён; значения не попали
+  в repository, commits, tasks или reports. Это дополнительный residual risk.
+
 ## Definition of Done
 
-- [ ] plaintext secrets отсутствуют в tracked current tree;
-- [ ] current relevant Git history очищена;
-- [ ] remote refs очищены и проверены;
-- [ ] `.env` untracked и защищён правами;
-- [ ] `.env.example` безопасен;
-- [ ] Ansible Vault создан/зашифрован;
-- [ ] vault password хранится вне Git;
-- [ ] Kubernetes Secret workflow использует allowlist;
-- [ ] secret scan после rewrite не показывает целевые credentials;
-- [ ] rollback backup сохранён до финальной проверки;
-- [ ] `tasks/CURRENT.md` обновлён;
-- [ ] основной deployment blocker снят;
-- [ ] изменения закоммичены и отправлены в GitHub.
+- [x] plaintext secrets отсутствуют в tracked current tree;
+- [x] current relevant Git history очищена;
+- [x] remote refs очищены и проверены;
+- [x] `.env` untracked и защищён правами;
+- [x] `.env.example` безопасен;
+- [x] Ansible Vault создан/зашифрован;
+- [x] vault password хранится вне Git;
+- [x] Kubernetes Secret workflow использует allowlist;
+- [x] secret scan после rewrite не показывает целевые credentials;
+- [x] rollback backup сохранён до финальной проверки;
+- [x] `tasks/CURRENT.md` обновлён;
+- [x] основной deployment blocker снят;
+- [x] изменения закоммичены и отправлены в GitHub.
 
 ## Финальный отчёт
 

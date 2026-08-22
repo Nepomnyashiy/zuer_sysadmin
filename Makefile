@@ -7,6 +7,8 @@ APP ?=
 IMAGE_TAG ?= $(shell date +%Y%m%d)-local
 REGISTRY ?= 127.0.0.1:30500
 BACKUP_CTL ?= /usr/local/sbin/osnova-backupctl
+ANSIBLE_PLAYBOOK ?= ansible-playbook
+VAULT_PASSWORD_FILE ?= /home/nsadmin/.config/osnova/ansible-vault-pass
 
 .PHONY: help
 help:
@@ -32,6 +34,10 @@ help:
 	@printf '%s\n' '  make app-dry-run APP=barber'
 	@printf '%s\n' '  make app-diff APP=barber'
 	@printf '%s\n' '  make app-apply APP=barber'
+	@printf '%s\n' ''
+	@printf '%s\n' 'Secrets:'
+	@printf '%s\n' '  make anaconda-secret-dry-run'
+	@printf '%s\n' '  make anaconda-secret-apply'
 	@printf '%s\n' ''
 	@printf '%s\n' 'Backup:'
 	@printf '%s\n' '  make backup-preflight'
@@ -121,6 +127,17 @@ app-diff:
 app-apply:
 	@test -n "$(APP)" || (echo 'APP is required, example: make app-apply APP=barber' >&2; exit 2)
 	$(KUBECTL) apply -k "apps/$(APP)/k8s"
+
+.PHONY: anaconda-secret-dry-run
+anaconda-secret-dry-run:
+	$(ANSIBLE_PLAYBOOK) ansible/k8s-anaconda-secret.yml \
+		--vault-password-file "$(VAULT_PASSWORD_FILE)"
+
+.PHONY: anaconda-secret-apply
+anaconda-secret-apply:
+	$(ANSIBLE_PLAYBOOK) ansible/k8s-anaconda-secret.yml \
+		--vault-password-file "$(VAULT_PASSWORD_FILE)" \
+		-e anaconda_secret_apply=true
 
 .PHONY: backup-postgres
 backup-postgres:

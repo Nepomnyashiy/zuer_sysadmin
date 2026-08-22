@@ -93,20 +93,20 @@ EMAIL_IMAP_USER
 EMAIL_IMAP_PASSWORD
 ```
 
-До полной автоматизации Vault допустим существующий helper, если source `.env` локальный и gitignored:
+Основной Anaconda workflow использует encrypted Vault:
 
 ```bash
-./scripts/k8s/create-secret-from-env.sh \
-  anaconda \
-  anaconda-secret \
-  /run/media/nsadmin/godny_soft/soft/kip-service/anaconda_mvp/.env \
-  POSTGRES_PASSWORD \
-  TELEGRAM_BOT_TOKEN \
-  EMAIL_IMAP_USER \
-  EMAIL_IMAP_PASSWORD
+make anaconda-secret-dry-run
+make anaconda-secret-apply
 ```
 
-Целевой вариант — отдельный Ansible task/playbook, который читает Vault и создаёт Kubernetes Secret без промежуточного plaintext-файла.
+Playbook `ansible/k8s-anaconda-secret.yml` передаёт manifest через stdin,
+использует `no_log` и не создаёт промежуточный plaintext-файл. Dry-run является
+default; apply требует отдельной явной команды.
+
+Helper `scripts/k8s/create-secret-from-env.sh` остаётся bootstrap/fallback
+вариантом. Он требует хотя бы один allowlisted key и запрещает импорт всего
+`.env`.
 
 ## 5. Проверка без раскрытия значений
 

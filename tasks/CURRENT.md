@@ -174,26 +174,17 @@ apps/anaconda/k8s
 Использовать существующий workflow:
 
 ```bash
-./scripts/k8s/create-secret-from-env.sh \
-  anaconda \
-  anaconda-secret \
-  /run/media/nsadmin/godny_soft/soft/kip-service/anaconda_mvp/.env \
-  POSTGRES_PASSWORD \
-  TELEGRAM_BOT_TOKEN \
-  EMAIL_IMAP_USER \
-  EMAIL_IMAP_PASSWORD
-
-make app-build APP=anaconda IMAGE_TAG=git-aeef02d
-make app-push APP=anaconda IMAGE_TAG=git-aeef02d
+make anaconda-secret-dry-run
 make app-dry-run APP=anaconda
 make app-diff APP=anaconda
+make anaconda-secret-apply
 make app-apply APP=anaconda
 ```
 
 Pre-deployment результат 2026-08-21:
 
-- source hardening: ветка `agent/anaconda-k8s-readiness`, commits `fdc178d` и
-  `aeef02d`;
+- source hardening после history rewrite: `88fbe3d` и `cf7a08a`; текущий tip
+  ветки `agent/anaconda-k8s-readiness`: `41f5a8f`;
 - frontend переведён с Vite dev server на static Nginx `8080`;
 - API имеет `/live` и DB-aware `/ready`, не логирует token prefix;
 - current-tree credential literals удалены, npm audit: 0 vulnerabilities;
@@ -229,19 +220,21 @@ Ansible Vault -> allowlisted Kubernetes Secret -> Pod
 
 Текущее решение пользователя для тестового этапа:
 
-- [ ] не ротировать существующие Telegram/IMAP credentials;
-- [ ] удалить plaintext credentials из relevant Git history;
-- [ ] убедиться, что `.env` не tracked и имеет безопасные права;
-- [ ] создать/проверить encrypted Ansible Vault source of truth;
-- [ ] хранить vault password вне Git;
-- [ ] использовать allowlisted Kubernetes Secret workflow;
-- [ ] повторно выполнить secret scan current tree + rewritten history;
-- [ ] обновить старые source commit SHA в sysadmin docs после history rewrite;
-- [ ] завершить `tasks/SECRETS_HYGIENE.md` статусом `READY`.
+- [x] не ротировать существующие Telegram/IMAP credentials;
+- [x] удалить plaintext credentials из relevant Git history;
+- [x] убедиться, что `.env` не tracked и имеет безопасные права;
+- [x] создать/проверить encrypted Ansible Vault source of truth;
+- [x] хранить vault password вне Git;
+- [x] использовать allowlisted Kubernetes Secret workflow;
+- [x] повторно выполнить secret scan current tree + rewritten history;
+- [x] обновить старые source commit SHA в sysadmin docs после history rewrite;
+- [x] завершить `tasks/SECRETS_HYGIENE.md` статусом `READY`.
 
 Residual risk принят пользователем для тестового этапа: history rewrite не гарантирует удаления уже скопированного секрета из сторонних clones/forks/caches. Перед реальным production использованием такие credentials должны быть перевыпущены.
 
-После статуса `SECRETS HYGIENE: READY` основной deployment-agent синхронизирует `agent/sysadmin`, читает обновлённый task state и продолжает Anaconda rollout без повторения уже завершённого platform-аудита.
+Secrets hygiene завершена 2026-08-22 со статусом `READY`. Основной
+deployment-agent синхронизирует `agent/sysadmin`, повторяет Secret dry-run/diff
+и продолжает Anaconda rollout без повторения уже завершённого platform-аудита.
 
 После rollout:
 
@@ -467,8 +460,9 @@ https://api.anaconda.godny.tech
 
 ## Blockers
 
-- **Anaconda production rollout:** временно ожидает завершения `tasks/SECRETS_HYGIENE.md`. Пользователь решил на тестовом этапе не ротировать Telegram/IMAP credentials, а очистить current tree/history, внедрить Ansible Vault и allowlisted Secret workflow. После `SECRETS HYGIENE: READY` этот blocker снимается.
-- Source hardening Anaconda находится в опубликованной ветке `agent/anaconda-k8s-readiness`; history rewrite может изменить SHA, поэтому после secrets cleanup ссылки на старые `fdc178d`/`aeef02d` необходимо актуализировать.
+- Secrets hygiene blocker снят. Перед Anaconda apply остаются штатные
+  `make anaconda-secret-dry-run`, `make app-dry-run APP=anaconda` и
+  `make app-diff APP=anaconda`.
 
 ## Decisions
 

@@ -180,6 +180,10 @@ kubectl create secret generic app-secret --from-env-file=.env
 - коммитить plaintext secrets;
 - передавать значения в CLI так, чтобы они попадали в shell history, если есть более безопасный способ;
 - копировать секреты из Git history в отчёт.
+- запускать рекурсивный поиск из каталога, содержащего temporary secret
+  artifacts; scan scope должен быть явно ограничен repository checkout;
+- печатать private keys из setup/deploy scripts вместо безопасной передачи в
+  целевое secret storage.
 
 В отчётах использовать только имена ключей и статус:
 

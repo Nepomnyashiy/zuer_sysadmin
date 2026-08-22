@@ -1,5 +1,14 @@
 ---
 # Copy to vault.yml with `ansible-vault create ansible/group_vars/vault.yml`.
+vault_anaconda:
+  postgres_password: "replace-with-strong-database-password"
+  telegram_bot_token: "replace-with-telegram-token"
+  email_imap_user: "replace-with-imap-user"
+  email_imap_password: "replace-with-imap-app-password"
+
+vault_kolos: {}
+
+# Legacy bootstrap variables remain flat until their playbooks are migrated.
 vault_nextcloud_admin_password: "replace-with-strong-admin-password"
 vault_nextcloud_db_password: "replace-with-strong-db-password"
 vault_nextcloud_db_root_password: "replace-with-strong-db-root-password"

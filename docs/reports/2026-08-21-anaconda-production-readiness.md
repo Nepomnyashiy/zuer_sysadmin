@@ -24,13 +24,14 @@
 - Build и push разделены: push больше не пересобирает image.
 - Добавлены backup/restore runbook и smoke test.
 
-## Source commits
+## Source commits after history rewrite
 
-- `fdc178d fix: harden Anaconda production images`.
-- `aeef02d fix: build database URL from Kubernetes env`.
+- `88fbe3d fix: harden Anaconda production images`.
+- `cf7a08a fix: build database URL from Kubernetes env`.
+- `41f5a8f fix(secrets): remove plaintext configuration artifacts`.
 
-Оба commits опубликованы в `agent/anaconda-k8s-readiness` репозитория
-`Nepomnyashiy/anaconda-mvp`.
+Commits опубликованы в `agent/anaconda-k8s-readiness` репозитория
+`Nepomnyashiy/anaconda-mvp`. Старые SHA стали недействительными после cleanup.
 
 ## Images
 
@@ -38,6 +39,10 @@
   `sha256:0c77ea569879ff15003c7f8f71d025ca75eb98128992217fd41d07d0c752cd6b`.
 - `127.0.0.1:30500/anaconda/web:git-aeef02d` ->
   `sha256:3f02d8b77ff1b7b548ac1a87bb5687485e5c9c49d64d97b4116baff9515c3d54`.
+
+Image tag `git-aeef02d` сохранён как исторический immutable registry identifier;
+его OCI digest не изменялся и не является ссылкой на доступный после rewrite
+Git commit.
 
 ## Проверки
 
@@ -68,23 +73,26 @@ Existing Anaconda containers и Docker volumes не найдены. Новый S
 - Docker Hub pulls периодически зависают; все выбранные base digests проверены
   перед фиксацией.
 
-## Blocker
+## Secrets hygiene gate
 
-До production Secret/apply требуется ротация Telegram bot token и IMAP app
-password. Удаление значений из текущего HEAD не удаляет их из Git history.
+Завершён 2026-08-22: current tree и relevant remote history очищены,
+encrypted Ansible Vault создан, allowlisted Kubernetes Secret workflow прошёл
+client dry-run. Пользователь решил сохранить текущие тестовые credentials без
+ротации; перед реальным production использованием они должны быть перевыпущены.
 
 ## Следующий шаг
 
-1. Пользователь ротирует Telegram/IMAP credentials вне Git.
-2. Обновляет локальный `.env` новыми значениями.
-3. Агент создаёт Secret через allowlist, повторяет dry-run/diff, выполняет apply,
-   rollout и `apps/anaconda/scripts/smoke.sh`.
-4. Только после smoke test добавляется live Traefik route по одному host.
+1. Основной deployment-agent синхронизирует `agent/sysadmin`.
+2. Повторяет `make anaconda-secret-dry-run`, app dry-run и diff.
+3. Выполняет `make anaconda-secret-apply`, app apply, rollout и smoke.
+4. Только после smoke test добавляет live Traefik route по одному host.
 
 ## Rollback
 
 - Runtime Anaconda не применялся; удалять namespace/PVC не требуется.
 - Registry содержит только новые immutable tags; существующие tags не
   перезаписаны.
-- Source changes откатываются revert commits `aeef02d` и `fdc178d`.
+- Pre-rewrite refs восстанавливаются из защищённого Git bundle, указанного в
+  secrets hygiene report; обычные post-rewrite source changes откатываются
+  revert commit `41f5a8f`.
 - Platform changes откатываются revert соответствующего sysadmin commit.
