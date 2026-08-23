@@ -2,6 +2,11 @@
 
 Дата: 2026-08-22
 
+**Status: SUPERSEDED 2026-08-24.** Этот rollout использовал ошибочно указанный
+source `kip-service/anaconda_mvp`. Фактический Anaconda Site переработан из
+`site/anaconda_site`; актуальное состояние описано в
+`2026-08-24-anaconda-site-corrective-rollout.md`.
+
 ## Цель
 
 Выполнить первый безопасный rollout Anaconda после secrets hygiene и проверить

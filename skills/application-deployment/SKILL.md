@@ -54,7 +54,12 @@ source
 ### Anaconda
 
 - `https://anaconda.godny.tech`
-- `https://api.anaconda.godny.tech`
+
+Текущий Anaconda Site — статический React/Vite frontend из
+`/run/media/nsadmin/godny_soft/site/anaconda_site`. Не создавать для него API,
+PostgreSQL, Redis или Secret без появления реальной server-side зависимости.
+Не передавать API keys через Vite build args/env: они попадут в публичный
+browser bundle.
 
 ## Сборка и публикация
 

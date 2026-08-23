@@ -7,7 +7,6 @@
   vars:
     expected_edge_hostname: ZUER
     anaconda_web_host: anaconda.godny.tech
-    anaconda_api_host: api.anaconda.godny.tech
     ingress_nginx_http_upstream: http://192.168.0.101:30080
     traefik_dynamic_dir: /srv/proxy/traefik/dynamic
     anaconda_edge_route_file: "{{ traefik_dynamic_dir }}/k8s-anaconda.yml"
@@ -31,8 +30,6 @@
       loop:
         - host: "{{ anaconda_web_host }}"
           url: "{{ ingress_nginx_http_upstream }}/healthz"
-        - host: "{{ anaconda_api_host }}"
-          url: "{{ ingress_nginx_http_upstream }}/ready"
       loop_control:
         label: "{{ item.host }}"
 
@@ -85,7 +82,6 @@
       until: anaconda_public_https.status == 200
       loop:
         - "https://{{ anaconda_web_host }}/healthz"
-        - "https://{{ anaconda_api_host }}/ready"
       when: not ansible_check_mode
 
     - name: Recheck existing public edge routes after change

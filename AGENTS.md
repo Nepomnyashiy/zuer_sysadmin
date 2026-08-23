@@ -22,7 +22,7 @@
 
 ```text
 /run/media/nsadmin/godny_soft/soft/barber
-/run/media/nsadmin/godny_soft/soft/kip-service/anaconda_mvp
+/run/media/nsadmin/godny_soft/site/anaconda_site
 /run/media/nsadmin/godny_soft/soft/kolos_web
 /run/media/nsadmin/godny_soft/soft/black_mamba
 ```

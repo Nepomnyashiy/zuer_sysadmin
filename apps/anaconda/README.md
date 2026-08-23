@@ -1,61 +1,57 @@
-# Anaconda Kubernetes migration
+# Anaconda Site on Kubernetes
 
-## Что это
+## Source
 
-Стартовый Kubernetes-манифест для `kip-service/anaconda_mvp`:
-
-- FastAPI API;
-- Vue/Vite frontend;
-- PostgreSQL 16.
-
-## Перед deploy
-
-```bash
-make k8s-preflight
-make anaconda-secret-dry-run
-make app-build APP=anaconda IMAGE_TAG=git-477accd
-make app-push APP=anaconda IMAGE_TAG=git-477accd
-make app-dry-run APP=anaconda
-make app-diff APP=anaconda
-make anaconda-secret-apply
+```text
+/run/media/nsadmin/godny_soft/site/anaconda_site
+repository: Nepomnyashiy/anaconda_site
+branch: agent/anaconda-site-k8s
 ```
 
-`anaconda-secret-apply` читает encrypted Ansible Vault и передаёт только
-`POSTGRES_PASSWORD`, `TELEGRAM_BOT_TOKEN`, `EMAIL_IMAP_USER` и
-`EMAIL_IMAP_PASSWORD`. Generated plaintext YAML не создаётся.
+Это статический React/Vite-сайт. Ему не нужны API Deployment, PostgreSQL,
+Redis, ConfigMap или Kubernetes Secret.
 
-После apply:
+## Build and deploy
+
+Если основной checkout не переключён на source-ветку из-за сохранённого dirty
+state, укажи подготовленный worktree через `ANACONDA_SOURCE_ROOT`:
 
 ```bash
+ANACONDA_SOURCE_ROOT=/tmp/anaconda-site-k8s-worktree \
+  make app-build APP=anaconda IMAGE_TAG=git-22a7f3f
+ANACONDA_SOURCE_ROOT=/tmp/anaconda-site-k8s-worktree \
+  make app-push APP=anaconda IMAGE_TAG=git-22a7f3f
+
+make app-dry-run APP=anaconda
+make app-diff APP=anaconda
+make app-apply APP=anaconda
 ./apps/anaconda/scripts/smoke.sh
 ```
 
-После успешного Kubernetes smoke отдельным этапом публикуется edge route:
+Production image — multi-stage build с unprivileged Nginx на `8080`. Image
+фиксируется в Kustomize по immutable tag и OCI digest.
+
+## Edge
+
+После Kubernetes smoke:
 
 ```bash
 make anaconda-edge-check
 make anaconda-edge-apply
 ```
 
-Targets запрашивают `sudo`, потому что standalone file-provider route хранится
-в `/srv/proxy/traefik/dynamic/k8s-anaconda.yml`. Check выполняет upstream и
-existing-route preflight; apply сохраняет backup старого файла и проверяет оба
-public HTTPS endpoint плюс существующие Nextcloud/dashboard routes. Перезапуск
-Traefik не требуется: file provider работает с `watch=true`.
+Edge публикует только `anaconda.godny.tech`. Host
+`api.anaconda.godny.tech` для статического сайта не используется.
 
-## Важно
+## Legacy MVP resources
 
-PostgreSQL не публикуется наружу. Telegram webhook должен указывать на внешний
-HTTPS URL после переключения ingress.
+Ошибочно развёрнутые `anaconda_mvp` API/PostgreSQL resources не входят в новый
+desired state. Их нельзя удалять автоматически: PVC/PV и Secret сохраняются до
+отдельного cleanup с явным подтверждением. После готовности сайта legacy
+controllers можно масштабировать в `0`, не удаляя retained data.
 
-Git history очищена. Для текущего тестового rollout пользователь сохранил
-существующие Telegram/IMAP credentials и принял residual risk. Перед реальным
-production использованием их необходимо перевыпустить.
+## Secrets
 
-Frontend image собирается как статический Vite build и работает под
-unprivileged Nginx на `8080`. Текущий source branch tip — `477accd`
-(`agent/anaconda-k8s-readiness`). API Deployment использует initContainer с
-`pg_isready`, поэтому cold start ждёт готовности PostgreSQL без CrashLoop.
-Production-like manifests фиксируют tag `git-477accd` и OCI digests.
-
-Backup/restore procedure: [`BACKUP_RESTORE.md`](BACKUP_RESTORE.md).
+Статический frontend не принимает API keys: значения Vite попадают в публичный
+JavaScript bundle. В source history обнаружены старые OpenRouter/Gemini keys;
+их необходимо отозвать и выполнить отдельный подтверждённый history cleanup.

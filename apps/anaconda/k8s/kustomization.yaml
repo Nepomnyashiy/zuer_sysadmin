@@ -3,15 +3,9 @@ kind: Kustomization
 namespace: anaconda
 resources:
   - namespace.yaml
-  - configmap.yaml
-  - postgres.yaml
-  - api.yaml
-  - web.yaml
+  - site.yaml
   - ingress.yaml
 images:
-  - name: 127.0.0.1:30500/anaconda/api
-    newTag: git-477accd
-    digest: sha256:0e4e47fdf4f28b8337d3e94094ed171e737f9e37be593d9bd124b65a394f2733
-  - name: 127.0.0.1:30500/anaconda/web
-    newTag: git-477accd
-    digest: sha256:3f02d8b77ff1b7b548ac1a87bb5687485e5c9c49d64d97b4116baff9515c3d54
+  - name: 127.0.0.1:30500/anaconda/site
+    newTag: git-22a7f3f
+    digest: sha256:32eeaa7ff31bf13804366aff257475d1b2ed0bb9d5401d357d465b1eb49b0585

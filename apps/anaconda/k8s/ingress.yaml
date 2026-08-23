@@ -12,17 +12,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: anaconda-web
+                name: anaconda-site
                 port:
                   name: http
-    - host: api.anaconda.godny.tech
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: anaconda-api
-                port:
-                  name: http
-

@@ -12,7 +12,6 @@
 - Kolos: `https://agro.godny.tech`
 - Kolos API: `https://api.agro.godny.tech`
 - Anaconda: `https://anaconda.godny.tech`
-- Anaconda API: `https://api.anaconda.godny.tech`
 
 После deployment интегрировать сервисы и Kubernetes с существующей **PromBizTech Analytics Platform** и сформировать единый стандарт для следующих приложений.
 
@@ -149,7 +148,7 @@ api.anaconda.godny.tech
 Source:
 
 ```text
-/run/media/nsadmin/godny_soft/soft/kip-service/anaconda_mvp
+/run/media/nsadmin/godny_soft/site/anaconda_site
 ```
 
 Kubernetes manifests:
@@ -158,112 +157,40 @@ Kubernetes manifests:
 apps/anaconda/k8s
 ```
 
-Проверить:
-
-- [x] Docker build contexts.
-- [x] ConfigMap.
-- [x] Secret mapping без вывода secret values.
-- [x] frontend.
-- [x] FastAPI API.
-- [x] PostgreSQL.
-- [x] probes.
-- [x] resource requests/limits.
-- [x] PVC/stateful data.
-- [x] Ingress hosts.
-
-Использовать существующий workflow:
-
-```bash
-make anaconda-secret-dry-run
-make app-dry-run APP=anaconda
-make app-diff APP=anaconda
-make anaconda-secret-apply
-make app-apply APP=anaconda
-```
-
-Pre-deployment результат 2026-08-21:
-
-- source hardening после history rewrite: `88fbe3d` и `cf7a08a`; текущий tip
-  ветки `agent/anaconda-k8s-readiness`: `477accd`;
-- frontend переведён с Vite dev server на static Nginx `8080`;
-- API имеет `/live` и DB-aware `/ready`, не логирует token prefix;
-- current-tree credential literals удалены, npm audit: 0 vulnerabilities;
-- существующие Anaconda Docker containers/volumes не найдены, первый rollout
-  создаёт новую пустую PostgreSQL;
-- immutable API/web images `git-477accd` опубликованы в local registry и
-  зафиксированы в manifests по OCI digest;
-- server-side dry-run успешен, diff показывает создание ожидаемых resources;
-- backup/restore runbook и smoke script добавлены.
-
-### Phase 5A — Secrets hygiene gate
-
-До фактического Anaconda apply выполнить отдельную focused task:
+Фактическая архитектура — статический React/Vite-сайт без API, PostgreSQL,
+Redis и runtime secrets. Source branch:
 
 ```text
-tasks/SECRETS_HYGIENE.md
+agent/anaconda-site-k8s @ 22a7f3f
 ```
 
-Обязательные документы:
+Результат корректирующего rollout 2026-08-24:
 
-```text
-skills/secrets-management/SKILL.md
-docs/runbooks/secrets-management.md
-```
+- [x] tracked `.env` и legacy Ansible/PM2/UFW stack удалены из current tree;
+- [x] Vite больше не встраивает Gemini/OpenRouter keys в browser bundle;
+- [x] Tailwind CDN/importmap заменены локальной production-сборкой;
+- [x] npm audit: 0 vulnerabilities;
+- [x] multi-stage image работает под unprivileged Nginx `101` на `8080`;
+- [x] image `anaconda/site:git-22a7f3f` опубликован и pinned по OCI digest;
+- [x] `anaconda-site` Deployment `1/1 Ready`, restart count `0`;
+- [x] ClusterIP Service и Kubernetes Ingress отвечают `200`;
+- [x] repository smoke test успешен;
+- [x] ошибочный MVP API/web/PostgreSQL масштабирован в `0` без удаления data;
+- [ ] standalone Traefik route обновлён до единственного web host;
+- [ ] `https://anaconda.godny.tech` проверен после edge update;
 
-Текущий стандарт:
+Retained legacy resources: API/web Deployments и PostgreSQL StatefulSet с
+replicas `0`, internal Services, Secret, PVC 20 GiB/PV `Retain`, baseline dump.
+Удаление требует отдельного подтверждения; rollback — replicas `1` и прежний
+Ingress/image manifests из Git history.
 
-```text
-Git -> обычная конфигурация + encrypted Ansible Vault
-ZUER -> local .env только как gitignored bootstrap/runtime source
-Ansible Vault -> allowlisted Kubernetes Secret -> Pod
-```
+Security blocker source repository:
 
-Текущее решение пользователя для тестового этапа:
-
-- [x] не ротировать существующие Telegram/IMAP credentials;
-- [x] удалить plaintext credentials из relevant Git history;
-- [x] убедиться, что `.env` не tracked и имеет безопасные права;
-- [x] создать/проверить encrypted Ansible Vault source of truth;
-- [x] хранить vault password вне Git;
-- [x] использовать allowlisted Kubernetes Secret workflow;
-- [x] повторно выполнить secret scan current tree + rewritten history;
-- [x] обновить старые source commit SHA в sysadmin docs после history rewrite;
-- [x] завершить `tasks/SECRETS_HYGIENE.md` статусом `READY`.
-
-Residual risk принят пользователем для тестового этапа: history rewrite не гарантирует удаления уже скопированного секрета из сторонних clones/forks/caches. Перед реальным production использованием такие credentials должны быть перевыпущены.
-
-Secrets hygiene завершена 2026-08-22 со статусом `READY`. Основной
-deployment-agent синхронизирует `agent/sysadmin`, повторяет Secret dry-run/diff
-и продолжает Anaconda rollout без повторения уже завершённого platform-аудита.
-
-После rollout:
-
-- [x] required Pods Ready.
-- [x] PostgreSQL healthy.
-- [x] PVC Bound.
-- [x] internal Service works.
-- [x] Kubernetes Ingress works.
-- [ ] `https://anaconda.godny.tech` works.
-- [ ] `https://api.anaconda.godny.tech` works.
-
-Kubernetes rollout завершён 2026-08-22. Secret доставлен из encrypted Vault с
-allowlist из четырёх keys. API, web и PostgreSQL имеют `1/1 Ready`, restart
-count `0`; PVC `data-anaconda-postgres-0` — `Bound`, 20 GiB,
-`osnova-local-retain`, PV policy `Retain`. Репозиторный smoke через ingress
-NodePort прошёл. Cold-start race API/PostgreSQL устранена initContainer с
-`pg_isready`; API logs и `/api/email/info` больше не раскрывают IMAP user.
-Создан baseline dump в `/mnt/ufiles/k8s-backups/postgres/anaconda/` с mode
-`600`; containerized `pg_restore --list` успешен. Restore drill не выполнялся.
-Следующий отдельный этап — declarative Traefik cutover двух Anaconda hosts и
-public HTTPS smoke.
-
-Edge automation подготовлена в `ansible/k8s-anaconda-edge.yml` и отдельном
-template `traefik-k8s-anaconda.yml.j2`; syntax/render checks успешны. Она не
-перезаписывает общий `routes.yml`, сохраняет Ansible backup и повторно проверяет
-существующие cloud/dashboard routes. Apply требует интерактивного `sudo`,
-которого у агента нет. Первый apply остановился до изменений на Nextcloud
-redirect check; workflow исправлен на проверку исходного `302` без follow и
-скрывает response cookies через `no_log`.
+- старые OpenRouter/Gemini keys присутствуют в Git history `master`;
+- current branch безопасна, bundle exact-value scan для AI keys clean;
+- keys необходимо отозвать;
+- history rewrite/force-push выполнять только после backup и явного
+  подтверждения пользователя.
 
 ## Phase 6 — Kolos deployment
 
@@ -399,7 +326,7 @@ docs/monitoring/platform.md
 ### Applications
 
 - [ ] Kolos frontend/backend/PostgreSQL.
-- [ ] Anaconda frontend/API/PostgreSQL.
+- [ ] Anaconda Site availability/latency.
 - [ ] availability.
 - [ ] request rate.
 - [ ] latency.
@@ -451,13 +378,12 @@ docs/monitoring/platform.md
 
 ## Definition of Done
 
-Все четыре публичные точки отвечают ожидаемо:
+Три актуальные публичные точки отвечают ожидаемо:
 
 ```text
 https://agro.godny.tech
 https://api.agro.godny.tech
 https://anaconda.godny.tech
-https://api.anaconda.godny.tech
 ```
 
 Одновременно:
@@ -479,19 +405,22 @@ https://api.anaconda.godny.tech
 
 ## Blockers
 
-- Kubernetes blocker отсутствует. До public HTTPS остаётся отдельный Traefik
-  cutover для `anaconda.godny.tech` и `api.anaconda.godny.tech`; существующие
-  edge routes нельзя затрагивать. Технический blocker: интерактивный `sudo` для
-  `make anaconda-edge-check` и затем `make anaconda-edge-apply`.
+- Anaconda Site Kubernetes/public HTTPS blocker отсутствует.
+- Edge template уже исправлен на один web router, но live file требует
+  интерактивного `make anaconda-edge-check/apply`, чтобы убрать устаревший
+  `api.anaconda.godny.tech` router.
+- Source history содержит старые OpenRouter/Gemini keys. Требуются rotation и
+  отдельно подтверждённый history rewrite после backup.
 
 ## Decisions
 
 - Kolos остаётся на `agro.godny.tech` / `api.agro.godny.tech`.
-- Anaconda использует `anaconda.godny.tech` / `api.anaconda.godny.tech`.
+- Anaconda Site использует только `anaconda.godny.tech`; отдельного API нет.
 - Docker Traefik остаётся внешним edge proxy.
 - ingress-nginx остаётся внутренним Kubernetes ingress.
 - существующий repository framework и Makefile используются вместо нового deployment framework.
 - проверки адаптируются к риску: быстро для LOW/MEDIUM, подтверждение только для реального HIGH risk.
-- production-like secret source of truth: encrypted Ansible Vault; local `.env` допустим только как gitignored/bootstrap source с `chmod 600`.
-- Kubernetes Secret создаётся только из allowlisted keys; весь `.env` целиком не импортируется.
-- на текущем тестовом этапе credentials сохраняются без ротации по явному решению пользователя; перед реальным production использованием их необходимо перевыпустить.
+- Static frontend не получает API keys или Kubernetes Secret; будущая
+  AI-интеграция должна использовать отдельный server-side API.
+- Encrypted Ansible Vault/allowlisted Secret остаются стандартом для приложений,
+  которым действительно нужны runtime credentials.

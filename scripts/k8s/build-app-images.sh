@@ -25,10 +25,9 @@ case "$app" in
     )
     ;;
   anaconda)
-    root="/run/media/nsadmin/godny_soft/soft/kip-service/anaconda_mvp"
+    root="${ANACONDA_SOURCE_ROOT:-/run/media/nsadmin/godny_soft/site/anaconda_site}"
     images=(
-      "$root/anaconda_api|$registry/anaconda/api:$tag"
-      "$root/anaconda_web|$registry/anaconda/web:$tag"
+      "$root|$registry/anaconda/site:$tag"
     )
     ;;
   kolos)
@@ -56,13 +55,8 @@ for item in "${images[@]}"; do
   image="${item##*|}"
 
   if [[ "$mode" != "--push-only" ]]; then
-    build_args=()
-    if [[ "$app" == "anaconda" && "$image" == "$registry/anaconda/web:$tag" ]]; then
-      build_args+=(--build-arg VITE_API_URL=https://api.anaconda.godny.tech/api)
-    fi
-
     echo "Building $image from $context"
-    docker build "${build_args[@]}" -t "$image" "$context"
+    docker build -t "$image" "$context"
   fi
 
   if [[ "$mode" != "--build-only" ]]; then

@@ -84,25 +84,14 @@ chmod 600 ~/.config/osnova/ansible-vault-pass
 
 Secret создаётся только из allowlisted keys.
 
-Для Anaconda текущий allowlist:
+Текущий Anaconda Site является статическим frontend и Kubernetes Secret не
+использует. API keys нельзя передавать через Vite build/runtime env: они
+становятся частью публичного JavaScript bundle. Для AI-функций нужен отдельный
+server-side API с allowlisted Secret workflow.
 
-```text
-POSTGRES_PASSWORD
-TELEGRAM_BOT_TOKEN
-EMAIL_IMAP_USER
-EMAIL_IMAP_PASSWORD
-```
-
-Основной Anaconda workflow использует encrypted Vault:
-
-```bash
-make anaconda-secret-dry-run
-make anaconda-secret-apply
-```
-
-Playbook `ansible/k8s-anaconda-secret.yml` передаёт manifest через stdin,
-использует `no_log` и не создаёт промежуточный plaintext-файл. Dry-run является
-default; apply требует отдельной явной команды.
+Существующий `anaconda-secret` относится к ошибочно развёрнутому legacy MVP и
+сохранён только для rollback. Не использовать его новым site Deployment и не
+удалять без отдельного cleanup-подтверждения.
 
 Helper `scripts/k8s/create-secret-from-env.sh` остаётся bootstrap/fallback
 вариантом. Он требует хотя бы один allowlisted key и запрещает импорт всего
@@ -110,9 +99,8 @@ Helper `scripts/k8s/create-secret-from-env.sh` остаётся bootstrap/fallba
 
 ## 5. Проверка без раскрытия значений
 
-```bash
-kubectl -n anaconda get secret anaconda-secret
-```
+Для приложений, которым Secret действительно нужен, проверять только metadata
+и key names через `kubectl get secret`, не декодируя значения в общий вывод.
 
 Разрешено проверять key names/metadata, но не декодировать значения в общий лог или чат.
 

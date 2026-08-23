@@ -35,10 +35,6 @@ help:
 	@printf '%s\n' '  make app-diff APP=barber'
 	@printf '%s\n' '  make app-apply APP=barber'
 	@printf '%s\n' ''
-	@printf '%s\n' 'Secrets:'
-	@printf '%s\n' '  make anaconda-secret-dry-run'
-	@printf '%s\n' '  make anaconda-secret-apply'
-	@printf '%s\n' ''
 	@printf '%s\n' 'Edge:'
 	@printf '%s\n' '  make anaconda-edge-check'
 	@printf '%s\n' '  make anaconda-edge-apply'
@@ -131,17 +127,6 @@ app-diff:
 app-apply:
 	@test -n "$(APP)" || (echo 'APP is required, example: make app-apply APP=barber' >&2; exit 2)
 	$(KUBECTL) apply -k "apps/$(APP)/k8s"
-
-.PHONY: anaconda-secret-dry-run
-anaconda-secret-dry-run:
-	$(ANSIBLE_PLAYBOOK) ansible/k8s-anaconda-secret.yml \
-		--vault-password-file "$(VAULT_PASSWORD_FILE)"
-
-.PHONY: anaconda-secret-apply
-anaconda-secret-apply:
-	$(ANSIBLE_PLAYBOOK) ansible/k8s-anaconda-secret.yml \
-		--vault-password-file "$(VAULT_PASSWORD_FILE)" \
-		-e anaconda_secret_apply=true
 
 .PHONY: anaconda-edge-check
 anaconda-edge-check:
