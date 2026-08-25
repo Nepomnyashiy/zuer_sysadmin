@@ -1,17 +1,19 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: anaconda
+  name: prombiz
+  labels:
+    app.kubernetes.io/name: prombiz
 spec:
   ingressClassName: nginx
   rules:
-    - host: anaconda.godny.tech
+    - host: prombiz.tech
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: anaconda-site
+                name: prombiz-site
                 port:
                   name: http

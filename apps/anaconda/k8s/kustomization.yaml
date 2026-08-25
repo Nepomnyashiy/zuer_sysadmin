@@ -3,9 +3,9 @@ kind: Kustomization
 namespace: anaconda
 resources:
   - namespace.yaml
-  - configmap.yaml
-  - postgres.yaml
-  - api.yaml
-  - web.yaml
+  - site.yaml
   - ingress.yaml
-
+images:
+  - name: 127.0.0.1:30500/anaconda/site
+    newTag: git-22a7f3f
+    digest: sha256:32eeaa7ff31bf13804366aff257475d1b2ed0bb9d5401d357d465b1eb49b0585

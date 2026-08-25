@@ -1,0 +1,16 @@
+http:
+  routers:
+    anaconda-web-k8s:
+      rule: "Host(`{{ anaconda_web_host }}`)"
+      entryPoints:
+        - websecure
+      service: ingress-nginx-anaconda
+      tls:
+        certResolver: letsencrypt
+
+  services:
+    ingress-nginx-anaconda:
+      loadBalancer:
+        passHostHeader: true
+        servers:
+          - url: "{{ ingress_nginx_http_upstream }}"

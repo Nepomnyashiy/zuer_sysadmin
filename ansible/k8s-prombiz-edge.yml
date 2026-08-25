@@ -1,0 +1,135 @@
+---
+- name: Publish PromBiz.Tech Kubernetes ingress through Docker Traefik
+  hosts: main
+  become: true
+  gather_facts: true
+
+  vars:
+    expected_edge_hostname: ZUER
+    prombiz_web_host: prombiz.tech
+    prombiz_www_host: www.prombiz.tech
+    ingress_nginx_http_upstream: http://192.168.0.101:30080
+    traefik_dynamic_dir: /srv/proxy/traefik/dynamic
+    prombiz_edge_route_file: "{{ traefik_dynamic_dir }}/prombiz-production.yml"
+    prombiz_edge_rollback_file: "{{ traefik_dynamic_dir }}/prombiz-production.pre-k8s.yml.bak"
+
+  pre_tasks:
+    - name: Confirm expected edge host
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.hostname == expected_edge_hostname
+        fail_msg: >-
+          Refusing edge change on {{ ansible_facts.hostname }}; expected
+          {{ expected_edge_hostname }}.
+
+    - name: Verify PromBiz.Tech through ingress-nginx before edge cutover
+      ansible.builtin.uri:
+        url: "{{ ingress_nginx_http_upstream }}{{ item }}"
+        headers:
+          Host: "{{ prombiz_web_host }}"
+        status_code: 200
+        use_proxy: false
+      loop:
+        - /
+        - /healthz
+
+    - name: Verify existing public edge routes before change
+      ansible.builtin.uri:
+        url: "{{ item.url }}"
+        status_code: "{{ item.status }}"
+        follow_redirects: none
+        use_proxy: false
+        validate_certs: true
+      no_log: true
+      loop:
+        - url: https://prombiz.tech/
+          status: 200
+        - url: https://cloud.godny.tech
+          status: 302
+        - url: https://traefik.godny.tech
+          status: 401
+      loop_control:
+        label: "{{ item.url }}"
+
+    - name: Verify Traefik dynamic directory
+      ansible.builtin.stat:
+        path: "{{ traefik_dynamic_dir }}"
+      register: traefik_dynamic_dir_stat
+
+    - name: Refuse missing Traefik dynamic directory
+      ansible.builtin.assert:
+        that:
+          - traefik_dynamic_dir_stat.stat.isdir | default(false)
+        fail_msg: "Traefik dynamic directory is missing: {{ traefik_dynamic_dir }}"
+
+    - name: Verify active legacy PromBiz route
+      ansible.builtin.stat:
+        path: "{{ prombiz_edge_route_file }}"
+      register: prombiz_edge_route_stat
+
+    - name: Refuse missing active legacy PromBiz route
+      ansible.builtin.assert:
+        that:
+          - prombiz_edge_route_stat.stat.isreg | default(false)
+        fail_msg: "Active PromBiz route is missing: {{ prombiz_edge_route_file }}"
+
+  tasks:
+    - name: Preserve one stable pre-Kubernetes rollback route
+      ansible.builtin.copy:
+        src: "{{ prombiz_edge_route_file }}"
+        dest: "{{ prombiz_edge_rollback_file }}"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0640"
+        force: false
+
+    - name: Route PromBiz.Tech to Kubernetes ingress-nginx
+      ansible.builtin.template:
+        src: traefik-k8s-prombiz.yml.j2
+        dest: "{{ prombiz_edge_route_file }}"
+        owner: root
+        group: root
+        mode: "0640"
+        backup: true
+
+    - name: Verify public PromBiz.Tech HTTPS after file-provider reload
+      ansible.builtin.uri:
+        url: "https://{{ prombiz_web_host }}{{ item }}"
+        status_code: 200
+        use_proxy: false
+        validate_certs: true
+      register: prombiz_public_https
+      retries: 12
+      delay: 5
+      until: prombiz_public_https.status == 200
+      loop:
+        - /
+        - /healthz
+      when: not ansible_check_mode
+
+    - name: Verify canonical www redirect
+      ansible.builtin.uri:
+        url: "https://{{ prombiz_www_host }}/"
+        status_code: 301
+        follow_redirects: none
+        use_proxy: false
+        validate_certs: true
+      when: not ansible_check_mode
+
+    - name: Recheck unrelated public edge routes
+      ansible.builtin.uri:
+        url: "{{ item.url }}"
+        status_code: "{{ item.status }}"
+        follow_redirects: none
+        use_proxy: false
+        validate_certs: true
+      no_log: true
+      loop:
+        - url: https://cloud.godny.tech
+          status: 302
+        - url: https://traefik.godny.tech
+          status: 401
+      loop_control:
+        label: "{{ item.url }}"
+      when: not ansible_check_mode

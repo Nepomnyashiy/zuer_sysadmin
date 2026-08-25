@@ -79,8 +79,10 @@ Known project roots on `godny_soft`:
 
 - `soft/gigavpn`: commercial VPN/control-plane project.
 - `bratusin/kolos_web`: Strapi/PostgreSQL/Next.js project.
-- `site/anaconda_site`: Vite/React site using Gemini API key.
-- `soft/kip-service/anaconda_mvp`: FastAPI/Vue/PostgreSQL MVP.
+- `site/anaconda_site`: active static Vite/React Anaconda Site; frontend must
+  not receive API keys.
+- `soft/kip-service/anaconda_mvp`: retained legacy MVP, not the active
+  `anaconda.godny.tech` source.
 - `soft/black_mamba`: local LLM/RAG platform.
 - `soft/devops-lab`: lab/observability project, not production by default.
 - `soft/codex_node_agent`: early-stage Codex automation service.

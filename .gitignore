@@ -1,6 +1,7 @@
 .env
+.env.*
+!.env.example
 *.env
-ansible/group_vars/vault.yml
 *.retry
 __pycache__/
 .cache/

@@ -1,0 +1,37 @@
+http:
+  routers:
+    prombiz-production:
+      rule: "Host(`prombiz.tech`)"
+      entryPoints:
+        - websecure
+      service: ingress-nginx-prombiz
+      tls:
+        certResolver: letsencrypt
+
+    prombiz-production-www:
+      rule: "Host(`www.prombiz.tech`)"
+      entryPoints:
+        - websecure
+      service: ingress-nginx-prombiz
+      middlewares:
+        - prombiz-production-www-redirect
+      tls:
+        certResolver: letsencrypt
+
+  middlewares:
+    prombiz-production-www-redirect:
+      redirectRegex:
+        regex: "^https://www\\.prombiz\\.tech/(.*)"
+        replacement: "https://prombiz.tech/${1}"
+        permanent: true
+
+  services:
+    ingress-nginx-prombiz:
+      loadBalancer:
+        passHostHeader: true
+        healthCheck:
+          path: /healthz
+          interval: 10s
+          timeout: 3s
+        servers:
+          - url: "{{ ingress_nginx_http_upstream }}"

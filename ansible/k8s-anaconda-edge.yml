@@ -1,0 +1,102 @@
+---
+- name: Publish Anaconda Kubernetes ingress through Docker Traefik
+  hosts: main
+  become: true
+  gather_facts: true
+
+  vars:
+    expected_edge_hostname: ZUER
+    anaconda_web_host: anaconda.godny.tech
+    ingress_nginx_http_upstream: http://192.168.0.101:30080
+    traefik_dynamic_dir: /srv/proxy/traefik/dynamic
+    anaconda_edge_route_file: "{{ traefik_dynamic_dir }}/k8s-anaconda.yml"
+
+  pre_tasks:
+    - name: Confirm expected edge host
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.hostname == expected_edge_hostname
+        fail_msg: >-
+          Refusing edge change on {{ ansible_facts.hostname }}; expected
+          {{ expected_edge_hostname }}.
+
+    - name: Verify Anaconda hosts through ingress-nginx before edge cutover
+      ansible.builtin.uri:
+        url: "{{ item.url }}"
+        headers:
+          Host: "{{ item.host }}"
+        status_code: 200
+        use_proxy: false
+      loop:
+        - host: "{{ anaconda_web_host }}"
+          url: "{{ ingress_nginx_http_upstream }}/healthz"
+      loop_control:
+        label: "{{ item.host }}"
+
+    - name: Verify existing public edge routes before change
+      ansible.builtin.uri:
+        url: "{{ item.url }}"
+        status_code: "{{ item.status }}"
+        follow_redirects: none
+        use_proxy: false
+        validate_certs: true
+      no_log: true
+      loop:
+        - url: https://cloud.godny.tech
+          status: 302
+        - url: https://traefik.godny.tech
+          status: 401
+      loop_control:
+        label: "{{ item.url }}"
+
+    - name: Verify Traefik dynamic directory
+      ansible.builtin.stat:
+        path: "{{ traefik_dynamic_dir }}"
+      register: traefik_dynamic_dir_stat
+
+    - name: Refuse missing Traefik dynamic directory
+      ansible.builtin.assert:
+        that:
+          - traefik_dynamic_dir_stat.stat.isdir | default(false)
+        fail_msg: "Traefik dynamic directory is missing: {{ traefik_dynamic_dir }}"
+
+  tasks:
+    - name: Deploy standalone Anaconda Kubernetes edge routes
+      ansible.builtin.template:
+        src: traefik-k8s-anaconda.yml.j2
+        dest: "{{ anaconda_edge_route_file }}"
+        owner: root
+        group: root
+        mode: "0640"
+        backup: true
+
+    - name: Verify public Anaconda HTTPS after file-provider reload
+      ansible.builtin.uri:
+        url: "{{ item }}"
+        status_code: 200
+        use_proxy: false
+        validate_certs: true
+      register: anaconda_public_https
+      retries: 12
+      delay: 5
+      until: anaconda_public_https.status == 200
+      loop:
+        - "https://{{ anaconda_web_host }}/healthz"
+      when: not ansible_check_mode
+
+    - name: Recheck existing public edge routes after change
+      ansible.builtin.uri:
+        url: "{{ item.url }}"
+        status_code: "{{ item.status }}"
+        follow_redirects: none
+        use_proxy: false
+        validate_certs: true
+      no_log: true
+      loop:
+        - url: https://cloud.godny.tech
+          status: 302
+        - url: https://traefik.godny.tech
+          status: 401
+      loop_control:
+        label: "{{ item.url }}"
+      when: not ansible_check_mode

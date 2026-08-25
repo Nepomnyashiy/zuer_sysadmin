@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: anaconda
+  name: prombiz
   labels:
+    app.kubernetes.io/name: prombiz
     app.kubernetes.io/part-of: osnova-platform
-    app.kubernetes.io/name: anaconda

@@ -1,0 +1,451 @@
+# CURRENT — Развёртывание и стандартизация приложений на godny.tech
+
+**Status:** ACTIVE  
+**Server:** ZUER  
+**Priority:** HIGH  
+**Created:** 2026-08-21
+
+## Цель
+
+Стандартизировать deployment приложений OSNOVA/GodnySoft на существующей Kubernetes-платформе ZUER и довести до стабильной публичной работы:
+
+- Kolos: `https://agro.godny.tech`
+- Kolos API: `https://api.agro.godny.tech`
+- Anaconda: `https://anaconda.godny.tech`
+
+После deployment интегрировать сервисы и Kubernetes с существующей **PromBizTech Analytics Platform** и сформировать единый стандарт для следующих приложений.
+
+## Архитектурные ограничения
+
+Текущий edge сохраняется:
+
+```text
+Internet
+-> router 80/443
+-> Docker Traefik
+-> ingress-nginx NodePort 30080/30443
+-> Kubernetes Ingress
+-> ClusterIP Service
+-> Pod
+```
+
+Не заменять Docker Traefik и не занимать Kubernetes'ом host ports 80/443.
+
+Local registry:
+
+```text
+127.0.0.1:30500
+```
+
+StorageClass:
+
+```text
+osnova-local-retain
+```
+
+PostgreSQL наружу не публикуется.
+
+## Phase 1 — Agent/repository standardization
+
+- [x] Создать ветку `agent/sysadmin`.
+- [x] Создать `skills/README.md`.
+- [x] Добавить system startup skill.
+- [x] Добавить Kubernetes skill.
+- [x] Добавить DevOps skill.
+- [x] Добавить application deployment skill.
+- [x] Добавить monitoring/observability skill.
+- [x] Добавить incident diagnostics skill.
+- [x] Добавить documentation sync skill.
+- [x] Добавить secrets management skill.
+- [x] Добавить компактный `docs/agent/START_PROMPT.md`.
+- [x] Создать текущую task-модель.
+- [ ] При необходимости синхронизировать ссылки на новую структуру с `AGENTS.md`/`README.md` без дублирования больших инструкций.
+
+## Phase 2 — ZUER audit
+
+Провести стартовый аудит согласно `skills/system-startup/SKILL.md`.
+
+Сохранить фактический результат в:
+
+```text
+docs/state/latest-audit.md
+```
+
+Проверить:
+
+- [x] OS/kernel/uptime.
+- [x] CPU/load.
+- [x] RAM/swap.
+- [x] GPU/VRAM.
+- [x] root и data storage.
+- [x] mountpoints и ro/rw.
+- [x] network/routes/listening ports.
+- [x] Docker/containerd.
+- [x] k3s/node state.
+- [x] namespaces/pods/deployments/statefulsets.
+- [x] ingress-nginx.
+- [x] registry 30500.
+- [x] PV/PVC/StorageClass.
+- [x] systemd failures.
+- [x] доступный capacity для Kolos + Anaconda.
+
+Результат 2026-08-21: `OK`. Полный snapshot сохранён в
+`docs/state/latest-audit.md`, ход-отчёт — в
+`docs/reports/2026-08-21-zuer-startup-audit.md`. Блокирующих проблем нет;
+root filesystem использует 67%, Docker показывает 23.93 GB reclaimable images,
+cleanup не выполнялся. Последний backup завершён успешно после двух
+восстановленных ошибок 2026-08-20.
+
+## Phase 3 — Platform validation
+
+Проверить фактическую цепочку:
+
+```text
+Docker Traefik -> 127.0.0.1:30080 -> ingress-nginx -> app Ingress
+```
+
+- [x] ingress-nginx healthy.
+- [x] NodePort 30080 работает.
+- [x] NodePort 30443 работает.
+- [x] registry `127.0.0.1:30500` доступен.
+- [x] `osnova-local-retain` существует и пригоден для stateful workloads.
+- [x] существующие public services не конфликтуют.
+
+Результат 2026-08-21: Traefik container достигает ingress-nginx через
+`http://192.168.0.101:30080`; ответ `404` ожидаем до появления app Ingress.
+`127.0.0.1:30080` нельзя использовать как upstream из Docker-контейнера без
+host networking, потому что loopback относится к самому контейнеру. В live
+Traefik нет rules для целевых Kolos/Anaconda hosts, существующие routes не
+конфликтуют.
+
+## Phase 4 — DNS
+
+Проверить:
+
+```text
+agro.godny.tech
+api.agro.godny.tech
+anaconda.godny.tech
+api.anaconda.godny.tech
+```
+
+Ожидаемый public IPv4:
+
+```text
+85.172.104.173
+```
+
+- [x] agro DNS.
+- [x] api.agro DNS.
+- [x] anaconda DNS.
+- [x] api.anaconda DNS.
+
+Результат 2026-08-21: system resolver и `1.1.1.1` возвращают
+`85.172.104.173` для всех четырёх A-записей. AAAA и CNAME не опубликованы.
+
+## Phase 5 — Anaconda deployment
+
+Source:
+
+```text
+/run/media/nsadmin/godny_soft/site/anaconda_site
+```
+
+Kubernetes manifests:
+
+```text
+apps/anaconda/k8s
+```
+
+Фактическая архитектура — статический React/Vite-сайт без API, PostgreSQL,
+Redis и runtime secrets. Source branch:
+
+```text
+agent/anaconda-site-k8s @ 22a7f3f
+```
+
+Результат корректирующего rollout 2026-08-24:
+
+- [x] tracked `.env` и legacy Ansible/PM2/UFW stack удалены из current tree;
+- [x] Vite больше не встраивает Gemini/OpenRouter keys в browser bundle;
+- [x] Tailwind CDN/importmap заменены локальной production-сборкой;
+- [x] npm audit: 0 vulnerabilities;
+- [x] multi-stage image работает под unprivileged Nginx `101` на `8080`;
+- [x] image `anaconda/site:git-22a7f3f` опубликован и pinned по OCI digest;
+- [x] `anaconda-site` Deployment `1/1 Ready`, restart count `0`;
+- [x] ClusterIP Service и Kubernetes Ingress отвечают `200`;
+- [x] repository smoke test успешен;
+- [x] ошибочный MVP API/web/PostgreSQL масштабирован в `0` без удаления data;
+- [ ] standalone Traefik route обновлён до единственного web host;
+- [ ] `https://anaconda.godny.tech` проверен после edge update;
+
+Retained legacy resources: API/web Deployments и PostgreSQL StatefulSet с
+replicas `0`, internal Services, Secret, PVC 20 GiB/PV `Retain`, baseline dump.
+Удаление требует отдельного подтверждения; rollback — replicas `1` и прежний
+Ingress/image manifests из Git history.
+
+Security blocker source repository:
+
+- старые OpenRouter/Gemini keys присутствуют в Git history `master`;
+- current branch безопасна, bundle exact-value scan для AI keys clean;
+- keys необходимо отозвать;
+- history rewrite/force-push выполнять только после backup и явного
+  подтверждения пользователя.
+
+## Phase 6 — Kolos deployment
+
+Source:
+
+```text
+/run/media/nsadmin/godny_soft/soft/kolos_web
+```
+
+Kubernetes manifests:
+
+```text
+apps/kolos/k8s
+```
+
+Домены сохраняются:
+
+```text
+https://agro.godny.tech
+https://api.agro.godny.tech
+```
+
+Не переименовывать в `kolos.godny.tech`.
+
+Перед deployment определить фактический источник production data:
+
+- [ ] текущая PostgreSQL.
+- [ ] текущие Strapi uploads.
+- [ ] существующий backup.
+- [ ] restore procedure.
+- [ ] migration/rollback plan.
+
+Не заменять рабочую БД пустой.
+
+Проверить:
+
+- [ ] Next.js frontend.
+- [ ] Strapi backend.
+- [ ] PostgreSQL StatefulSet.
+- [ ] uploads PVC.
+- [ ] ConfigMap/Secret.
+- [ ] probes.
+- [ ] requests/limits.
+- [ ] Ingress.
+
+Workflow:
+
+```bash
+./scripts/k8s/create-secret-from-env.sh \
+  kolos \
+  kolos-secret \
+  /run/media/nsadmin/godny_soft/soft/kolos_web/.env
+
+make app-build APP=kolos
+make app-push APP=kolos
+make app-dry-run APP=kolos
+make app-diff APP=kolos
+make app-apply APP=kolos
+```
+
+После rollout:
+
+- [ ] frontend Ready.
+- [ ] backend Ready.
+- [ ] PostgreSQL healthy.
+- [ ] uploads persistent.
+- [ ] PVC Bound.
+- [ ] Ingress works.
+- [ ] `https://agro.godny.tech` works.
+- [ ] `https://api.agro.godny.tech` works.
+
+## Phase 7 — Resource validation
+
+После запуска обоих приложений проверить:
+
+- [ ] CPU.
+- [ ] RAM/swap.
+- [ ] disk usage/IO.
+- [ ] Pod requests/limits.
+- [ ] Pod restarts.
+- [ ] PVC usage.
+- [ ] Node conditions.
+- [ ] достаточный headroom для стабильной работы.
+
+## Phase 8 — PromBizTech Analytics Platform audit
+
+Найти фактический каталог **PromBizTech Analytics Platform** на ZUER.
+
+Изучить:
+
+- [ ] Prometheus.
+- [ ] Grafana.
+- [ ] Loki/логирование.
+- [ ] exporters.
+- [ ] scrape configs.
+- [ ] alerts.
+- [ ] dashboards.
+- [ ] storage/retention.
+
+Сохранить фактическую архитектуру в:
+
+```text
+docs/monitoring/platform.md
+```
+
+Не создавать параллельный monitoring stack, если существующий можно расширить.
+
+## Phase 9 — Monitoring standardization
+
+Обеспечить visibility для:
+
+### ZUER
+
+- [ ] CPU/load.
+- [ ] RAM/swap.
+- [ ] filesystem.
+- [ ] disk IO.
+- [ ] network.
+- [ ] temperatures.
+- [ ] GPU/VRAM/temperature.
+- [ ] Docker/container runtime.
+
+### Kubernetes
+
+- [ ] Node conditions.
+- [ ] Pods/restarts.
+- [ ] CPU/RAM usage.
+- [ ] requests/limits.
+- [ ] Deployments/StatefulSets.
+- [ ] PV/PVC.
+- [ ] ingress metrics.
+
+### Applications
+
+- [ ] Kolos frontend/backend/PostgreSQL.
+- [ ] Anaconda Site availability/latency.
+- [ ] availability.
+- [ ] request rate.
+- [ ] latency.
+- [ ] HTTP status classes.
+- [ ] DB connections/latency/size.
+
+## Phase 10 — Grafana dashboards
+
+Минимальный набор:
+
+- [ ] ZUER Overview.
+- [ ] Kubernetes Overview.
+- [ ] Applications Overview.
+- [ ] Kolos.
+- [ ] Anaconda.
+- [ ] PostgreSQL.
+- [ ] Traefik / Edge.
+- [ ] Storage.
+- [ ] GPU.
+
+Использовать стандарт `skills/monitoring-observability/SKILL.md`.
+
+## Phase 11 — Alerts
+
+Минимально полезные alerts:
+
+- [ ] node unavailable.
+- [ ] application unavailable.
+- [ ] database unavailable.
+- [ ] filesystem/PVC almost full.
+- [ ] excessive pod restarts.
+- [ ] ingress unavailable.
+- [ ] backup failed.
+- [ ] TLS expiry.
+- [ ] GPU overheating.
+
+## Phase 12 — Documentation and standardization
+
+После фактического deployment сформировать единый стандарт onboarding следующего приложения на `godny.tech`.
+
+Обновить по факту:
+
+- [ ] `tasks/CURRENT.md`.
+- [ ] `docs/state/latest-audit.md`.
+- [ ] `docs/monitoring/platform.md`.
+- [ ] app README/runbooks.
+- [ ] skills при появлении reusable knowledge.
+- [ ] README/AGENTS только там, где нужны ссылки или правила верхнего уровня.
+
+## Definition of Done
+
+Три актуальные публичные точки отвечают ожидаемо:
+
+```text
+https://agro.godny.tech
+https://api.agro.godny.tech
+https://anaconda.godny.tech
+```
+
+Одновременно:
+
+- [ ] Kubernetes node Ready.
+- [ ] required Pods Ready.
+- [ ] PostgreSQL instances healthy.
+- [ ] required PVC Bound.
+- [ ] ingress healthy.
+- [ ] Docker Traefik routing healthy.
+- [ ] TLS healthy.
+- [ ] existing services not broken.
+- [ ] resource headroom acceptable.
+- [ ] metrics collected.
+- [ ] core dashboards functional.
+- [ ] critical alerts configured.
+- [ ] docs/tasks/skills synchronized.
+- [ ] Git changes committed and pushed.
+
+## Completed migration — PromBiz.Tech (2026-08-25)
+
+- [x] Static PromBiz.Tech image built, pushed and pinned by OCI digest.
+- [x] Namespace, hardened Deployment, ClusterIP Service and Ingress applied.
+- [x] Pod `1/1 Ready`; NodePort Host smoke returned `200` for `/` and `/healthz`.
+- [x] Docker Traefik route switched to ingress-nginx `192.168.0.101:30080`.
+- [x] Public HTTPS, TLS and canonical `www` redirect verified.
+- [x] Legacy production container frozen after successful public smoke.
+- [x] Route backup and rollback procedure retained.
+- [x] `anaconda.godny.tech` and unrelated edge routes verified unaffected.
+
+## Completed audit — projects/runtime/Git (2026-08-25)
+
+- [x] Классифицированы все dirty-файлы sysadmin без их изменения.
+- [x] Сопоставлены Docker Compose, k3s, systemd, edge и public endpoints.
+- [x] Проверены Git repositories/worktrees/branches текущих проектов.
+- [x] Проверены Kustomize builds, Ansible syntax и shell syntax.
+- [x] Оценено объединение sysadmin и PromBizTech branches.
+- [x] Зафиксирован target standard и phased consolidation plan.
+- [x] Обновлён фактический monitoring state.
+
+Отчёт: `docs/reports/2026-08-25-zuer-projects-runtime-git-audit.md`.
+Следующий этап — тематическая нормализация dirty tree и branch unification;
+не выполнять её одним смешанным commit.
+
+## Blockers
+
+- Anaconda Site Kubernetes/public HTTPS blocker отсутствует.
+- Edge template уже исправлен на один web router, но live file требует
+  интерактивного `make anaconda-edge-check/apply`, чтобы убрать устаревший
+  `api.anaconda.godny.tech` router.
+- Source history содержит старые OpenRouter/Gemini keys. Требуются rotation и
+  отдельно подтверждённый history rewrite после backup.
+
+## Decisions
+
+- Kolos остаётся на `agro.godny.tech` / `api.agro.godny.tech`.
+- Anaconda Site использует только `anaconda.godny.tech`; отдельного API нет.
+- Docker Traefik остаётся внешним edge proxy.
+- ingress-nginx остаётся внутренним Kubernetes ingress.
+- существующий repository framework и Makefile используются вместо нового deployment framework.
+- проверки адаптируются к риску: быстро для LOW/MEDIUM, подтверждение только для реального HIGH risk.
+- Static frontend не получает API keys или Kubernetes Secret; будущая
+  AI-интеграция должна использовать отдельный server-side API.
+- Encrypted Ansible Vault/allowlisted Secret остаются стандартом для приложений,
+  которым действительно нужны runtime credentials.

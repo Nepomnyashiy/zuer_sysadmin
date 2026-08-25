@@ -2,14 +2,20 @@
 set -euo pipefail
 
 if [[ $# -lt 3 || $# -gt 4 ]]; then
-  echo "Usage: $0 <app> <registry> <tag> [--build-only]" >&2
+  echo "Usage: $0 <app> <registry> <tag> [--build-only|--push-only]" >&2
   exit 2
 fi
 
 app="$1"
 registry="$2"
 tag="$3"
-build_only="${4:-}"
+mode="${4:-}"
+dockerfile_args=()
+
+if [[ -n "$mode" && "$mode" != "--build-only" && "$mode" != "--push-only" ]]; then
+  echo "Unsupported mode: $mode" >&2
+  exit 2
+fi
 
 case "$app" in
   barber)
@@ -20,10 +26,16 @@ case "$app" in
     )
     ;;
   anaconda)
-    root="/run/media/nsadmin/godny_soft/soft/kip-service/anaconda_mvp"
+    root="${ANACONDA_SOURCE_ROOT:-/run/media/nsadmin/godny_soft/site/anaconda_site}"
     images=(
-      "$root/anaconda_api|$registry/anaconda/api:$tag"
-      "$root/anaconda_web|$registry/anaconda/web:$tag"
+      "$root|$registry/anaconda/site:$tag"
+    )
+    ;;
+  prombiz)
+    root="/run/media/nsadmin/godny_soft/soft/anaconda_web"
+    dockerfile_args=(-f "$root/Dockerfile.prod")
+    images=(
+      "$root|$registry/prombiz/site:$tag"
     )
     ;;
   kolos)
@@ -49,11 +61,14 @@ esac
 for item in "${images[@]}"; do
   context="${item%%|*}"
   image="${item##*|}"
-  echo "Building $image from $context"
-  docker build -t "$image" "$context"
-  if [[ "$build_only" != "--build-only" ]]; then
+
+  if [[ "$mode" != "--push-only" ]]; then
+    echo "Building $image from $context"
+    docker build "${dockerfile_args[@]}" -t "$image" "$context"
+  fi
+
+  if [[ "$mode" != "--build-only" ]]; then
     echo "Pushing $image"
     docker push "$image"
   fi
 done
-

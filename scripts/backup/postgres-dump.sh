@@ -10,12 +10,12 @@ namespace="$1"
 app="$2"
 database="$3"
 user="$4"
-backup_root="${BACKUP_ROOT:-/mnt/ufiles/backups/k8s-postgres}"
+backup_root="${BACKUP_ROOT:-/mnt/ufiles/k8s-backups/postgres}"
 timestamp="$(date +%Y%m%d-%H%M%S)"
 target_dir="$backup_root/$namespace/$app"
 target_file="$target_dir/${database}-${timestamp}.dump"
 
-mkdir -p "$target_dir"
+install -d -m 700 "$target_dir"
 
 pod="$(kubectl get pods -n "$namespace" -l "app.kubernetes.io/name=$app" -o jsonpath='{.items[0].metadata.name}')"
 if [[ -z "$pod" ]]; then
@@ -28,4 +28,3 @@ kubectl exec -n "$namespace" "$pod" -- pg_dump -U "$user" -d "$database" -Fc >"$
 
 chmod 600 "$target_file"
 echo "Backup written: $target_file"
-

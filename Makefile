@@ -7,6 +7,8 @@ APP ?=
 IMAGE_TAG ?= $(shell date +%Y%m%d)-local
 REGISTRY ?= 127.0.0.1:30500
 BACKUP_CTL ?= /usr/local/sbin/osnova-backupctl
+ANSIBLE_PLAYBOOK ?= ansible-playbook
+VAULT_PASSWORD_FILE ?= /home/nsadmin/.config/osnova/ansible-vault-pass
 
 .PHONY: help
 help:
@@ -32,6 +34,12 @@ help:
 	@printf '%s\n' '  make app-dry-run APP=barber'
 	@printf '%s\n' '  make app-diff APP=barber'
 	@printf '%s\n' '  make app-apply APP=barber'
+	@printf '%s\n' ''
+	@printf '%s\n' 'Edge:'
+	@printf '%s\n' '  make anaconda-edge-check'
+	@printf '%s\n' '  make anaconda-edge-apply'
+	@printf '%s\n' '  make prombiz-edge-check'
+	@printf '%s\n' '  make prombiz-edge-apply'
 	@printf '%s\n' ''
 	@printf '%s\n' 'Backup:'
 	@printf '%s\n' '  make backup-preflight'
@@ -105,7 +113,7 @@ app-build:
 .PHONY: app-push
 app-push:
 	@test -n "$(APP)" || (echo 'APP is required, example: make app-push APP=barber' >&2; exit 2)
-	./scripts/k8s/build-app-images.sh "$(APP)" "$(REGISTRY)" "$(IMAGE_TAG)"
+	./scripts/k8s/build-app-images.sh "$(APP)" "$(REGISTRY)" "$(IMAGE_TAG)" --push-only
 
 .PHONY: app-dry-run
 app-dry-run:
@@ -121,6 +129,30 @@ app-diff:
 app-apply:
 	@test -n "$(APP)" || (echo 'APP is required, example: make app-apply APP=barber' >&2; exit 2)
 	$(KUBECTL) apply -k "apps/$(APP)/k8s"
+
+.PHONY: anaconda-edge-check
+anaconda-edge-check:
+	sudo $(ANSIBLE_PLAYBOOK) ansible/k8s-anaconda-edge.yml \
+		--vault-password-file "$(VAULT_PASSWORD_FILE)" \
+		--check --diff
+
+.PHONY: anaconda-edge-apply
+anaconda-edge-apply:
+	sudo $(ANSIBLE_PLAYBOOK) ansible/k8s-anaconda-edge.yml \
+		--vault-password-file "$(VAULT_PASSWORD_FILE)" \
+		--diff
+
+.PHONY: prombiz-edge-check
+prombiz-edge-check:
+	sudo $(ANSIBLE_PLAYBOOK) ansible/k8s-prombiz-edge.yml \
+		--vault-password-file "$(VAULT_PASSWORD_FILE)" \
+		--check --diff
+
+.PHONY: prombiz-edge-apply
+prombiz-edge-apply:
+	sudo $(ANSIBLE_PLAYBOOK) ansible/k8s-prombiz-edge.yml \
+		--vault-password-file "$(VAULT_PASSWORD_FILE)" \
+		--diff
 
 .PHONY: backup-postgres
 backup-postgres:
