@@ -414,6 +414,20 @@ https://anaconda.godny.tech
 - [x] Route backup and rollback procedure retained.
 - [x] `anaconda.godny.tech` and unrelated edge routes verified unaffected.
 
+## Completed audit — projects/runtime/Git (2026-08-25)
+
+- [x] Классифицированы все dirty-файлы sysadmin без их изменения.
+- [x] Сопоставлены Docker Compose, k3s, systemd, edge и public endpoints.
+- [x] Проверены Git repositories/worktrees/branches текущих проектов.
+- [x] Проверены Kustomize builds, Ansible syntax и shell syntax.
+- [x] Оценено объединение sysadmin и PromBizTech branches.
+- [x] Зафиксирован target standard и phased consolidation plan.
+- [x] Обновлён фактический monitoring state.
+
+Отчёт: `docs/reports/2026-08-25-zuer-projects-runtime-git-audit.md`.
+Следующий этап — тематическая нормализация dirty tree и branch unification;
+не выполнять её одним смешанным commit.
+
 ## Blockers
 
 - Anaconda Site Kubernetes/public HTTPS blocker отсутствует.

@@ -1,43 +1,51 @@
 # ZUER Latest Audit
 
-**Status:** OK
+**Status:** DEGRADED
 
-**Updated:** 2026-08-24T00:52:07+03:00
+**Updated:** 2026-08-25T13:35:00+03:00
 
-**Scope:** полный audit 2026-08-21 + corrected Anaconda Site delta 2026-08-24
+**Scope:** полный host/runtime/Git audit 2026-08-25
 
 ## Итог
 
-Корректный Anaconda Site публично работает; ZUER готов к edge cleanup и
-подготовке Kolos.
-Блокирующих ошибок хоста, Docker или Kubernetes не обнаружено. Single-node
-кластер не является отказоустойчивым; stateful deployment всё равно требует
-проверенного backup/restore и отдельного migration plan.
+ZUER работоспособен: node Ready, все активные Pods Ready, systemd failures
+отсутствуют, daily backup успешен. PromBiz.Tech и Anaconda работают из k3s;
+Nextcloud, AI/LLM, PromBiz staging и Docker Traefik работают в Compose.
+
+Статус `DEGRADED`, потому что live state ещё не полностью декларативен:
+дублируется router `ai.godny.tech`, сохранён stale Anaconda API router,
+Prometheus/Grafana/Loki не развёрнуты, несколько source trees dirty/divergent,
+часть AI images mutable, а Anaconda build зависит от временных `/tmp`
+worktrees. Полный актуальный анализ:
+`docs/reports/2026-08-25-zuer-projects-runtime-git-audit.md`.
+
+Разделы ниже сохраняют подробный baseline 2026-08-24; при расхождении
+приоритет имеет отчёт 2026-08-25.
 
 ## Host
 
 - Hostname: `ZUER`.
 - OS: Ubuntu 26.04 LTS.
 - Kernel: `7.0.0-29-generic`.
-- Uptime на момент проверки: 2 дня.
-- Load average: `0.99 / 1.03 / 1.14`.
+- Uptime на момент проверки: 6 дней 3 часа.
+- Load average: `0.83 / 0.74 / 0.79`.
 - systemd failed units: `0`.
 
 ## Compute
 
 - CPU: Intel Core i5-12600KF, 10 cores / 16 logical CPUs.
-- RAM: 30 GiB total, 8.9 GiB used, 21 GiB available.
-- Swap: 8 GiB total, 4.8 MiB used.
+- RAM: 30 GiB total, 13 GiB used, 16 GiB available.
+- Swap: 8 GiB total, 2.4 GiB used.
 - GPU: NVIDIA GeForce RTX 4060, driver `595.84`, CUDA `13.2`.
-- VRAM: 531 MiB / 8188 MiB; GPU utilization 0-7% во время аудита.
+- VRAM: около 1347 MiB / 8188 MiB; GPU utilization 4-10% во время аудита.
 
 ## Storage и mounts
 
 | Mount | Filesystem | Usage | Available | State |
 | --- | --- | ---: | ---: | --- |
-| `/` | ext4 | 71% | 31 GiB | `rw` |
-| `/mnt/ufiles` | ext4 | 31% | 605 GiB | `rw` |
-| `/run/media/nsadmin/godny_soft` | ext4 | 6% | 196 GiB | `rw` |
+| `/` | ext4 | 72% | 30 GiB | `rw` |
+| `/mnt/ufiles` | ext4 | 32% | 600 GiB | `rw` |
+| `/run/media/nsadmin/godny_soft` | ext4 | 7% | 196 GiB | `rw` |
 | `/srv/storage/x-files` | NTFS/fuseblk | 59% | 775 GiB | mounted |
 | `/srv/storage/mega-files` | NTFS/fuseblk | 55% | 848 GiB | mounted |
 
@@ -65,9 +73,9 @@ NodePort не обязан отображаться как userspace listening s
 ## Docker
 
 - Docker Engine: `29.1.3`; containerd image store активен.
-- Running containers: 13, включая Traefik, Nextcloud, PromBizTech web,
+- Running containers: 12, включая Traefik, Nextcloud, PromBizTech staging,
   локальные AI-сервисы и внутренние базы.
-- Docker storage: 31.99 GB images, из них 23.93 GB помечено reclaimable;
+- Docker storage: 36.37 GB images, из них 25.24 GB помечено reclaimable;
   cleanup не выполнялся.
 - Traefik продолжает владеть `80/443`.
 
@@ -78,16 +86,17 @@ NodePort не обязан отображаться как userspace listening s
 - Node `zuer`: `Ready`; MemoryPressure, DiskPressure и PIDPressure — `False`.
 - Container runtime: `containerd://2.3.2-k3s2`.
 - Metrics API работает.
-- Kubernetes events на момент проверки отсутствовали.
+- Kubernetes events содержат только нормальные события rollout PromBiz.Tech.
 
 Workloads:
 
-- 5/5 infrastructure Pods `Running` и `Ready`;
+- 5/5 infrastructure Pods `Running` и `Ready`; всего active Pods: 7/7;
 - ingress-nginx, local-registry, CoreDNS, local-path-provisioner и
   metrics-server доступны;
 - Anaconda Site: `1/1 Running`/`Ready`, restart count `0`; ошибочный MVP
   API/web/PostgreSQL сохранён с replicas `0`;
-- у инфраструктурных Pods по 21 restart, последний был 2 дня назад вместе с
+- PromBiz.Tech Site: `1/1 Running`/`Ready`, restart count `0`;
+- у инфраструктурных Pods по 21 restart, последний был 6 дней назад вместе с
   текущим boot; текущих restart loops нет.
 
 ## Ingress и registry
@@ -97,6 +106,8 @@ Workloads:
 - Local registry: `1/1 Ready`, NodePort `30500`, API `/v2/` отвечает `200`.
 - Anaconda Ingress публикует только `anaconda.godny.tech`; NodePort и public
   HTTPS smoke возвращают `200`.
+- PromBiz Ingress публикует `prombiz.tech`; public `/` и `/healthz`
+  возвращают `200`, `www` — `301` на canonical.
 - Развёрнут immutable image `anaconda/site:git-22a7f3f` ->
   `sha256:32eeaa7ff31bf13804366aff257475d1b2ed0bb9d5401d357d465b1eb49b0585`.
 
@@ -140,11 +151,12 @@ System resolver и `1.1.1.1` возвращают одинаковые данн�
 ## Capacity
 
 - Node allocatable: 16 CPU, 31,906,288 Ki memory, 110 Pods.
-- Kubernetes requests: 400m CPU (2%), 524 MiB memory (1%).
-- Kubernetes limits: 1500m CPU (9%), 1450 MiB memory (4%).
-- Текущее node usage: около 556m CPU (3%) и 8494 MiB memory (27%).
+- Kubernetes requests: 475m CPU (2%), 620 MiB memory (1%).
+- Kubernetes limits: 2250m CPU (14%), 1834 MiB memory (5%).
+- Текущее node usage: около 720m CPU (4%) и 13114 MiB memory (42%).
 
-Anaconda Site потребляет около 1m CPU / 14 MiB RAM. Node остаётся `Ready`, без
+Anaconda Site потребляет около 1m CPU / 14 MiB RAM, PromBiz.Tech — около
+1m CPU / 12 MiB RAM. Node остаётся `Ready`, без
 MemoryPressure/DiskPressure. Capacity для Kolos нужно подтвердить после аудита
 его production data и resource profile.
 
@@ -152,15 +164,15 @@ MemoryPressure/DiskPressure. Capacity для Kolos нужно подтверди
 
 - В текущем boot были две восстановленные ошибки backup: `No space left on
   device` и временный `read-only` для `/mnt/ufiles` 2026-08-20.
-- Последний запуск `osnova-backup.service` завершился успешно 2026-08-21
-  03:39 MSK: `Result=success`, `ExecMainStatus=0`.
+- Последний запуск `osnova-backup.service` завершился успешно 2026-08-25
+  03:33 MSK: `Result=success`, `ExecMainStatus=0`.
 - Четыре backup timers активны; следующий daily запуск запланирован на
-  2026-08-22.
+  2026-08-26.
 - Anaconda baseline dump создан в `/mnt/ufiles/k8s-backups/postgres/anaconda/`,
   mode `600`; проверка `pg_restore --list` внутри PostgreSQL Pod успешна.
-- Root filesystem уже использует 71%; следить за ростом build artifacts и
+- Root filesystem уже использует 72%; следить за ростом build artifacts и
   container images.
-- Docker показывает 23.93 GB reclaimable images. Автоматический prune не
+- Docker показывает 25.24 GB reclaimable images. Автоматический prune не
   выполнялся, поскольку cleanup требует отдельной оценки используемых tags и
   rollback-образов.
 - GPU доступна, но перенос Black Mamba/Ollama по-прежнему требует отдельного
