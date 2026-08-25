@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: prombiz
+resources:
+  - namespace.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+images:
+  - name: 127.0.0.1:30500/prombiz/site
+    digest: sha256:dc173606762e62fb167a549dadde293a491f7c473411f1d8db057495a5a27dd1

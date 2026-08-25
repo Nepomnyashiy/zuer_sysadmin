@@ -10,6 +10,7 @@ app="$1"
 registry="$2"
 tag="$3"
 mode="${4:-}"
+dockerfile_args=()
 
 if [[ -n "$mode" && "$mode" != "--build-only" && "$mode" != "--push-only" ]]; then
   echo "Unsupported mode: $mode" >&2
@@ -28,6 +29,13 @@ case "$app" in
     root="${ANACONDA_SOURCE_ROOT:-/run/media/nsadmin/godny_soft/site/anaconda_site}"
     images=(
       "$root|$registry/anaconda/site:$tag"
+    )
+    ;;
+  prombiz)
+    root="/run/media/nsadmin/godny_soft/soft/anaconda_web"
+    dockerfile_args=(-f "$root/Dockerfile.prod")
+    images=(
+      "$root|$registry/prombiz/site:$tag"
     )
     ;;
   kolos)
@@ -56,7 +64,7 @@ for item in "${images[@]}"; do
 
   if [[ "$mode" != "--push-only" ]]; then
     echo "Building $image from $context"
-    docker build -t "$image" "$context"
+    docker build "${dockerfile_args[@]}" -t "$image" "$context"
   fi
 
   if [[ "$mode" != "--build-only" ]]; then

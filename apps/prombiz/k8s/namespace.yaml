@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: prombiz
+  labels:
+    app.kubernetes.io/name: prombiz
+    app.kubernetes.io/part-of: osnova-platform

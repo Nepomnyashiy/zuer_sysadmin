@@ -38,6 +38,8 @@ help:
 	@printf '%s\n' 'Edge:'
 	@printf '%s\n' '  make anaconda-edge-check'
 	@printf '%s\n' '  make anaconda-edge-apply'
+	@printf '%s\n' '  make prombiz-edge-check'
+	@printf '%s\n' '  make prombiz-edge-apply'
 	@printf '%s\n' ''
 	@printf '%s\n' 'Backup:'
 	@printf '%s\n' '  make backup-preflight'
@@ -137,6 +139,18 @@ anaconda-edge-check:
 .PHONY: anaconda-edge-apply
 anaconda-edge-apply:
 	sudo $(ANSIBLE_PLAYBOOK) ansible/k8s-anaconda-edge.yml \
+		--vault-password-file "$(VAULT_PASSWORD_FILE)" \
+		--diff
+
+.PHONY: prombiz-edge-check
+prombiz-edge-check:
+	sudo $(ANSIBLE_PLAYBOOK) ansible/k8s-prombiz-edge.yml \
+		--vault-password-file "$(VAULT_PASSWORD_FILE)" \
+		--check --diff
+
+.PHONY: prombiz-edge-apply
+prombiz-edge-apply:
+	sudo $(ANSIBLE_PLAYBOOK) ansible/k8s-prombiz-edge.yml \
 		--vault-password-file "$(VAULT_PASSWORD_FILE)" \
 		--diff
 
