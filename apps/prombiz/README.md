@@ -45,6 +45,20 @@ Edge playbook сохраняет исходный route:
 
     /srv/proxy/traefik/dynamic/prombiz-production.pre-k8s.yml.bak
 
-Для rollback восстановить backup поверх prombiz-production.yml, убедиться,
-что legacy container запущен, и повторить public smoke. Kubernetes resources и
-image при этом можно оставить для диагностики.
+Legacy production runtime заморожен после успешного cutover:
+
+    source: /run/media/nsadmin/godny_soft/soft/prombiztech
+    container: prombiztech-production-web
+    state: stopped, restart=no (FROZEN)
+    compose: /tmp/prombiztech-rollback-a12/deploy/production/compose.yaml
+    env: /srv/prombiztech-production/env/production.env
+
+Для rollback восстановить backup поверх `prombiz-production.yml`, затем:
+
+    docker update --restart=unless-stopped prombiztech-production-web
+    docker start prombiztech-production-web
+
+Traefik монтирует dynamic directory read-only. На ZUER backup можно восстановить
+через Ansible playbook либо одноразовый helper container с RW bind mount.
+После восстановления обязательно проверить public `/`, `/healthz`, TLS и `www`.
+Kubernetes resources и image при этом можно оставить для диагностики.

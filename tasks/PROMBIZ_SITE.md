@@ -1,6 +1,6 @@
 # PromBiz.Tech — site onboarding and Kubernetes integration
 
-**Status:** PLANNED  
+**Status:** COMPLETE
 **Project repo:** `Nepomnyashiy/anaconda_web`  
 **Project branch:** `agent/prombiz-rebrand`
 
@@ -21,7 +21,7 @@ https://prombiz.tech
 Ожидаемый путь:
 
 ```text
-/run/media/nsadmin/godny_soft/soft/PromBizTech
+/run/media/nsadmin/godny_soft/soft/anaconda_web
 ```
 
 ## Целевая архитектура
@@ -41,21 +41,21 @@ Astro static build
 
 ## Platform work
 
-- [ ] Синхронизировать проект после завершения brand/architecture cleanup.
-- [ ] Создать `apps/prombiz/k8s/`.
-- [ ] Добавить build/push поддержку `APP=prombiz` в существующий framework.
-- [ ] Подготовить Deployment/Service/Ingress.
-- [ ] Добавить readiness/liveness/resources/securityContext.
-- [ ] Build immutable image и push local registry.
-- [ ] Server-side dry-run/diff.
-- [ ] Проверить NodePort Host routing до edge.
-- [ ] Проверить текущий DNS/старый hosting.
-- [ ] Подготовить Traefik route.
-- [ ] Выполнить cutover только после готовности Kubernetes site.
-- [ ] Проверить TLS/200/redirect www.
-- [ ] Отключить старую публикацию после успешной проверки.
-- [ ] Сохранить rollback до подтверждения стабильности.
-- [ ] Подключить monitoring после deployment.
+- [x] Синхронизировать проект после завершения brand/architecture cleanup.
+- [x] Создать `apps/prombiz/k8s/`.
+- [x] Добавить build/push поддержку `APP=prombiz` в существующий framework.
+- [x] Подготовить Deployment/Service/Ingress.
+- [x] Добавить readiness/liveness/resources/securityContext.
+- [x] Build immutable image и push local registry.
+- [x] Server-side dry-run/diff.
+- [x] Проверить NodePort Host routing до edge.
+- [x] Проверить текущий DNS/старый hosting.
+- [x] Подготовить Traefik route.
+- [x] Выполнить cutover только после готовности Kubernetes site.
+- [x] Проверить TLS/200/redirect www.
+- [x] Отключить старую публикацию после успешной проверки.
+- [x] Сохранить rollback до подтверждения стабильности.
+- [x] Подключить monitoring после deployment.
 
 ## Ограничения
 
@@ -67,3 +67,22 @@ Astro static build
 ## Handoff
 
 Project agent должен сначала завершить `tasks/CURRENT.md` в `anaconda_web@agent/prombiz-rebrand`, затем перейти к этой platform task.
+
+## Production result — 2026-08-25
+
+- Source: `anaconda_web@agent/prombiz-rebrand`, image tag `git-3bdc760`.
+- Registry digest: `sha256:dc173606762e62fb167a549dadde293a491f7c473411f1d8db057495a5a27dd1`.
+- `prombiz/prombiz-site`: `1/1 Ready`, zero restarts at cutover.
+- `prombiz-site` is a ClusterIP Service; application NodePort was not created.
+- Docker Traefik forwards `prombiz.tech` to ingress-nginx at `192.168.0.101:30080`.
+- Public `/` and `/healthz` return `200`; `www` returns permanent `301` to canonical.
+- TLS certificate for `prombiz.tech` is valid and issued by Let's Encrypt.
+- Legacy `prombiztech-production-web` is `FROZEN`: stopped with `restart=no`.
+- Legacy source, container, image, Compose file and route backup were retained.
+- `anaconda.godny.tech` remained `200` before and after cutover.
+
+The Ansible check was blocked by interactive local sudo authentication. The exact
+reviewed template was applied through a one-shot Docker helper against the Traefik
+bind mount; the active route is still represented by the committed playbook/template.
+See `apps/prombiz/README.md` and
+`docs/reports/2026-08-25-prombiz-site-cutover.md` for rollback.

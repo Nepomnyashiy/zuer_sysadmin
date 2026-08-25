@@ -403,6 +403,17 @@ https://anaconda.godny.tech
 - [ ] docs/tasks/skills synchronized.
 - [ ] Git changes committed and pushed.
 
+## Completed migration — PromBiz.Tech (2026-08-25)
+
+- [x] Static PromBiz.Tech image built, pushed and pinned by OCI digest.
+- [x] Namespace, hardened Deployment, ClusterIP Service and Ingress applied.
+- [x] Pod `1/1 Ready`; NodePort Host smoke returned `200` for `/` and `/healthz`.
+- [x] Docker Traefik route switched to ingress-nginx `192.168.0.101:30080`.
+- [x] Public HTTPS, TLS and canonical `www` redirect verified.
+- [x] Legacy production container frozen after successful public smoke.
+- [x] Route backup and rollback procedure retained.
+- [x] `anaconda.godny.tech` and unrelated edge routes verified unaffected.
+
 ## Blockers
 
 - Anaconda Site Kubernetes/public HTTPS blocker отсутствует.
